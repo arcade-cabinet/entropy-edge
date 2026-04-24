@@ -11,6 +11,8 @@ import { chromium } from 'playwright';
 
 const url = process.env.URL || 'http://127.0.0.1:5173/';
 const outDir = process.env.SNAPSHOT_DIR || '/tmp';
+import fs from 'node:fs';
+fs.mkdirSync(outDir, { recursive: true });
 const browser = await chromium.launch();
 const errors = [];
 
@@ -39,6 +41,6 @@ await shot('desktop', { width: 1280, height: 800 });
 await shot('mobile', { width: 390, height: 844 });
 
 console.log('ERRORS:', errors.length ? '\n  ' + errors.join('\n  ') : 'none');
-console.log(`SHOTS: ${outDir}/ee-desktop.png, ${outDir}/ee-mobile.png`);
+console.log(`SHOTS: ${outDir}/ee-*-landing.png, ${outDir}/ee-*-play.png`);
 await browser.close();
 if (errors.length) process.exit(1);

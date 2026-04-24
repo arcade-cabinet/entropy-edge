@@ -72,11 +72,11 @@ pnpm test:e2e            # Playwright end-to-end
 pnpm compile-content     # config/raw → config/compiled/content.ts
 pnpm cap:sync            # build + cap sync (android)
 pnpm cap:run:android     # pnpm cap:sync && cap run android
-```
+```text
 
 ## Project Structure
 
-```
+```text
 src/
   sim/                     pure TS — no engine, no DOM, no React
     rng/                   seedrandom wrapper, named streams
@@ -110,13 +110,13 @@ scripts/compile-content.mjs
 tests/unit/                vitest node
 tests/integration/         vitest dom
 docs/                      PRODUCTION.md is the live PR-chain plan
-```
+```text
 
 ## Design palette (locked)
 
 See [`docs/DESIGN.md`](docs/DESIGN.md) for rationale.
 
-```
+```text
 --color-bg:        #07080a   void graphite (background)
 --color-graphite:  #0f1115   voxel chunk base
 --color-surface:   #1a1d24   HUD surfaces
@@ -128,7 +128,7 @@ See [`docs/DESIGN.md`](docs/DESIGN.md) for rationale.
 --color-warn:      #ff375f   stress / collapse red
 --color-amber:     #ffae00   unbraced-cantilever amber
 --color-monument:  #2ee5b8   mint (your claimed monuments)
-```
+```text
 
 Display font: Space Grotesk (geometric uppercase).
 Body font: Inter (HUD + body).

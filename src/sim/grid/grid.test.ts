@@ -53,6 +53,7 @@ describe('Grid', () => {
     g.place({ pos: { x: 0, y: 0, z: 0 }, owner: 'you', compositeId: null });
     const marked = g.markMonument({ x: 0, y: 0, z: 0 });
     expect(marked?.monument).toBe(true);
+    expect(g.get({ x: 0, y: 0, z: 0 })?.monument).toBe(true);
   });
 
   it('remove also disassembles its composite', () => {

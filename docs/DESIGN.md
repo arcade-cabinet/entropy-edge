@@ -202,9 +202,9 @@ did it to yourself.
 Pure PRNG generates incoherent sectors. Instead: a log-curve
 multiplier and a **pattern pool** per difficulty band.
 
-```
+```text
 difficulty(level) = log2(level + 1)
-```
+```text
 
 | Band | Levels | Patterns | Shape palette |
 |---|---|---|---|

@@ -116,6 +116,7 @@ export class Grid {
     const id = cellId(pos.x, pos.y, pos.z);
     const cell = this.cells.get(id);
     if (!cell) return undefined;
+    if (cell.monument) return cell;
     this.cells.delete(id);
     if (cell.compositeId) {
       const composite = this.composites.get(cell.compositeId);

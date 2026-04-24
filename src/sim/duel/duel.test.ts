@@ -61,8 +61,14 @@ describe('Duel controller', () => {
       rng: new Rng('duel-rng'),
     });
     ctrl.endYourTurn();
+    const roundBefore = ctrl.state.round;
     ctrl.runRivalTurn();
     // After rival runs, we're either still ongoing (next round) or a claim fired.
     expect(['ongoing', 'claimed', 'drawn']).toContain(ctrl.state.status.kind);
+    // Side effects: either budget decreased, or round advanced, or game ended.
+    if (ctrl.state.status.kind === 'ongoing') {
+      expect(ctrl.state.round).toBeGreaterThanOrEqual(roundBefore);
+      expect(ctrl.state.turn).toBe('you');
+    }
   });
 });

@@ -126,7 +126,7 @@ function SetupPhase({ onStart, onBack }: { onStart: (seed: string) => void; onBa
           </div>
           <div style={{ marginTop: 24 }}>
             <button
-              onClick={rollNew}
+              onPointerUp={rollNew}
               style={{
                 background: 'transparent',
                 border: '1px solid var(--color-fg-muted, #7a8190)',
@@ -147,7 +147,7 @@ function SetupPhase({ onStart, onBack }: { onStart: (seed: string) => void; onBa
 
         <div style={{ display: 'flex', gap: 16, width: '100%' }}>
           <button
-            onClick={onBack}
+            onPointerUp={onBack}
             style={{
               flex: 1,
               padding: '14px 24px',
@@ -165,7 +165,7 @@ function SetupPhase({ onStart, onBack }: { onStart: (seed: string) => void; onBa
             Cancel
           </button>
           <button
-            onClick={() => onStart(codename.slug)}
+            onPointerUp={() => onStart(codename.slug)}
             className="ee-display"
             style={{
               flex: 2,
@@ -389,7 +389,7 @@ function SeedBadge({ codename }: { codename: Codename }) {
     >
       <button
         type="button"
-        onClick={onCopy}
+        onPointerUp={onCopy}
         style={{
           pointerEvents: 'auto',
           cursor: 'pointer',
@@ -554,7 +554,7 @@ function GameOverOverlay({
         <div style={{ display: 'flex', gap: 12, marginTop: 8, flexWrap: 'wrap', justifyContent: 'center' }}>
           <button
             type="button"
-            onClick={onRestart}
+            onPointerUp={onRestart}
             className="ee-display"
             style={{
               padding: '12px 26px',
@@ -574,7 +574,7 @@ function GameOverOverlay({
           </button>
           <button
             type="button"
-            onClick={onExit}
+            onPointerUp={onExit}
             style={{
               padding: '12px 22px',
               background: 'transparent',
@@ -604,7 +604,7 @@ function MuteToggle() {
       type="button"
       aria-label={muted ? 'Unmute audio' : 'Mute audio'}
       aria-pressed={muted}
-      onClick={() => setMuted(!muted)}
+      onPointerUp={() => setMuted(!muted)}
       style={{
         position: 'absolute',
         right: 16,

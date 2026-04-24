@@ -32,7 +32,7 @@ domain: technical
 
 ## Three-layer contract
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────┐
 │  Sim (src/sim/**)                                               │
 │    rng │ grid │ shapes │ stability │ placement │ objective       │
@@ -55,13 +55,13 @@ domain: technical
 │    layers: player / opponent / monument / hologram / debris      │
 │    Reads actor state read-only. Never mutates sim.               │
 └─────────────────────────────────────────────────────────────────┘
-```
+```text
 
 Violations are bugs. The sim must stay unit-testable in Node.
 
 ## Data flow
 
-```
+```text
 pointer input (React capture on canvas)
     │
     ▼
@@ -90,7 +90,7 @@ src/render/bridge           → VoxelRenderer.setVoxel / save / load
     │
     ▼
 @jolly-pixel/voxel.renderer → dirty chunks rebuilt, canvas drawn
-```
+```text
 
 ## Engine wiring
 
@@ -114,7 +114,7 @@ const map = world.createActor('lattice').addComponentAndGet(VoxelRenderer, {
 });
 await map.loadTileset({ id: 'default', src: 'tileset/entropy-edge.png', tileSize: 32 });
 await loadRuntime(runtime);
-```
+```text
 
 ### Sim ↔ ECS handoff
 
@@ -135,7 +135,7 @@ UI never sees the physics frames.
 
 ## Directory layout
 
-```
+```text
 src/
   sim/                 pure TS
     rng/
@@ -172,7 +172,7 @@ src/
     landing/
     game/
     overlays/
-```
+```text
 
 ## Content pipeline
 

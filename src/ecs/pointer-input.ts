@@ -36,7 +36,8 @@ export function attachPointerInput(cfg: PointerInputConfig): () => void {
     const x = Math.floor(hit.x + 0.5);
     const z = Math.floor(hit.z + 0.5);
     let y = 0;
-    while (cfg.grid.has({ x, y, z })) y += 1;
+    while (cfg.grid.has({ x, y, z }) && y < 100) y += 1;
+    if (y >= 100) return null;
     return { x, y, z };
   };
 

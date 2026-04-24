@@ -14,19 +14,22 @@ export interface Vec3 {
 export type CellId = string;
 
 export function cellId(x: number, y: number, z: number): CellId {
+  if (!Number.isInteger(x) || !Number.isInteger(y) || !Number.isInteger(z)) {
+    throw new Error(`cellId: non-integer component in (${x}, ${y}, ${z})`);
+  }
   return `${x},${y},${z}`;
 }
 
 export function parseCellId(id: CellId): Vec3 {
   const parts = id.split(',');
-  if (parts.length !== 3) {
+  if (parts.length !== 3 || parts.some(p => p.trim() === '')) {
     throw new Error(`cellId: malformed id "${id}"`);
   }
   const x = Number(parts[0]);
   const y = Number(parts[1]);
   const z = Number(parts[2]);
-  if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(z)) {
-    throw new Error(`cellId: non-finite component in "${id}"`);
+  if (!Number.isInteger(x) || !Number.isInteger(y) || !Number.isInteger(z)) {
+    throw new Error(`cellId: non-integer component in "${id}"`);
   }
   return { x, y, z };
 }

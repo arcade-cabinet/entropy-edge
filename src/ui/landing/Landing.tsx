@@ -101,7 +101,7 @@ export function Landing({ onEnter }: LandingProps) {
           animate={{ opacity: 1, scale: 1 }}
           transition={{ duration: 0.4, delay: 0.35 }}
           type="button"
-          onClick={onEnter}
+          onPointerUp={onEnter}
           className="ee-display"
           style={{
             marginTop: 24,
