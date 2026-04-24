@@ -11,7 +11,9 @@ import {
   type SectorObjective,
 } from '@/sim';
 import { attachPointerInput, SimBridge } from '@/ecs';
+import { createAmbient, createSfx, ensureStarted } from '@/audio';
 import { BLOCK_DEFINITIONS } from './blocks';
+import { solve } from '@/sim';
 
 /**
  * JollyPixel runtime bootstrap.
@@ -50,10 +52,10 @@ export async function bootstrap(options: BootstrapOptions): Promise<Teardown> {
   scene.background = new THREE.Color('#07080a');
   scene.fog = new THREE.FogExp2(0x07080a, 0.016);
 
-  const ambient = new THREE.AmbientLight(new THREE.Color('#dce1e8'), 0.9);
-  const dir = new THREE.DirectionalLight(new THREE.Color('#ffffff'), 1.6);
-  dir.position.set(16, 28, 18);
-  scene.add(ambient, dir);
+  const ambientLight = new THREE.AmbientLight(new THREE.Color('#dce1e8'), 0.9);
+  const dirLight = new THREE.DirectionalLight(new THREE.Color('#ffffff'), 1.6);
+  dirLight.position.set(16, 28, 18);
+  scene.add(ambientLight, dirLight);
 
   let cameraRef: Camera3DControls | null = null;
   world.createActor('camera').addComponent(Camera3DControls, {}, (component) => {
@@ -102,7 +104,33 @@ export async function bootstrap(options: BootstrapOptions): Promise<Teardown> {
   bridge.seedCell('rival', rivalAnchor);
   options.onDuelChange?.(bridge.state);
 
-  const offChange = bridge.onChange((state) => options.onDuelChange?.(state));
+  // Audio — synthesized pad + SFX. Nothing fires until first gesture.
+  const ambient = createAmbient();
+  const sfx = createSfx();
+  let audioArmed = false;
+  const armAudio = () => {
+    if (audioArmed) return;
+    audioArmed = true;
+    void ensureStarted().then(() => ambient.start(objective.difficultyBand));
+  };
+  const updateAmbientStability = () => {
+    const state = solve(bridge.grid);
+    const total = bridge.grid.cellCount || 1;
+    const stableCount = total - state.stressed.size;
+    ambient.setStability(stableCount / total);
+    sfx.stress(state.stressed.size / Math.max(1, total));
+  };
+
+  const offChange = bridge.onChange((state) => {
+    options.onDuelChange?.(state);
+    updateAmbientStability();
+    if (state.status.kind === 'claimed') {
+      void sfx.claim();
+    }
+  });
+  const offCommit = bridge.onCommit((event) => {
+    void sfx.play(event.kind, event.owner);
+  });
 
   // Pointer input — tap/drag-to-place cubes.
   let detachPointer: (() => void) | null = null;
@@ -113,6 +141,7 @@ export async function bootstrap(options: BootstrapOptions): Promise<Teardown> {
       cameraHost: cameraRef,
       grid: bridge.grid,
       onTap: (pos) => {
+        armAudio();
         if (bridge.state.turn !== 'you') return;
         if (bridge.state.status.kind !== 'ongoing') return;
         try {
@@ -142,7 +171,10 @@ export async function bootstrap(options: BootstrapOptions): Promise<Teardown> {
 
   return () => {
     offChange();
+    offCommit();
     detachPointer?.();
+    ambient.stop();
+    sfx.stop();
     runtime.stop?.();
   };
 }

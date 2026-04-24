@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { bootstrap } from '@/render/bridge/bootstrap';
+import { isMuted, onMuteChange, setMuted } from '@/audio';
 import type { Codename, DuelState, SectorObjective } from '@/sim';
 import { readSeedFromLocation, shareUrlForSeed } from '@/sim';
 
@@ -54,7 +55,40 @@ export function Game() {
       {duelState && objective ? (
         <Hud state={duelState} objective={objective} codename={codename} />
       ) : null}
+      <MuteToggle />
     </main>
+  );
+}
+
+function MuteToggle() {
+  const [muted, setMutedState] = useState<boolean>(() => isMuted());
+  useEffect(() => onMuteChange(setMutedState), []);
+  return (
+    <button
+      type="button"
+      aria-label={muted ? 'Unmute audio' : 'Mute audio'}
+      aria-pressed={muted}
+      onClick={() => setMuted(!muted)}
+      style={{
+        position: 'absolute',
+        right: 16,
+        bottom: 16,
+        width: 40,
+        height: 40,
+        borderRadius: 20,
+        background: 'rgba(26, 29, 36, 0.75)',
+        border: `1px solid ${muted ? 'var(--color-warn, #ff375f)' : 'rgba(33, 212, 255, 0.35)'}`,
+        color: muted ? 'var(--color-warn, #ff375f)' : 'var(--color-beacon, #21d4ff)',
+        cursor: 'pointer',
+        fontFamily: 'var(--font-mono)',
+        fontSize: 14,
+        pointerEvents: 'auto',
+        display: 'grid',
+        placeItems: 'center',
+      }}
+    >
+      {muted ? '×' : '♪'}
+    </button>
   );
 }
 

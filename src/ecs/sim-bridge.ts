@@ -7,9 +7,16 @@ import {
   type DuelState,
   type PlayerId,
   type SectorObjective,
+  type ShapeKind,
   type Vec3,
 } from '@/sim';
 import { BLOCK_IDS } from '@/render/bridge';
+
+export interface CommitEvent {
+  readonly kind: ShapeKind;
+  readonly owner: PlayerId;
+  readonly cellCount: number;
+}
 
 /**
  * SimBridge — glues the pure sim layer to a JollyPixel VoxelRenderer.
@@ -37,6 +44,7 @@ export class SimBridge {
   readonly controller: DuelController;
   private readonly mirroredCells = new Map<string, { owner: PlayerId; monument: boolean }>();
   private readonly listeners = new Set<(state: DuelState) => void>();
+  private readonly commitListeners = new Set<(event: CommitEvent) => void>();
   private _state: DuelState;
 
   constructor(private readonly config: SimBridgeConfig) {
@@ -62,9 +70,17 @@ export class SimBridge {
     return () => this.listeners.delete(listener);
   }
 
-  commitPlayer(req: { kind: Parameters<DuelController['commitPlayer']>[0]['kind']; origin: Vec3 }): DuelState {
+  onCommit(listener: (event: CommitEvent) => void): () => void {
+    this.commitListeners.add(listener);
+    return () => this.commitListeners.delete(listener);
+  }
+
+  commitPlayer(req: { kind: ShapeKind; origin: Vec3 }): DuelState {
+    const before = this.grid.cellCount;
     this._state = this.controller.commitPlayer({ kind: req.kind, origin: req.origin, owner: 'you' });
+    const placed = this.grid.cellCount - before;
     this.syncRenderer();
+    this.emitCommit({ kind: req.kind, owner: 'you', cellCount: placed });
     this.emit();
     return this._state;
   }
@@ -83,8 +99,16 @@ export class SimBridge {
   }
 
   runRivalTurn(): DuelState {
+    const before = this.grid.cellCount;
     this._state = this.controller.runRivalTurn();
+    const placed = this.grid.cellCount - before;
     this.syncRenderer();
+    if (placed > 0) {
+      // Rival may have placed N cells of various kinds; we fire a coarse
+      // 'cube' commit event — the full kind breakdown would require rival
+      // turn telemetry from the controller, which is a later enhancement.
+      this.emitCommit({ kind: 'cube', owner: 'rival', cellCount: placed });
+    }
     this.emit();
     return this._state;
   }
@@ -138,5 +162,9 @@ export class SimBridge {
 
   private emit(): void {
     for (const l of this.listeners) l(this._state);
+  }
+
+  private emitCommit(event: CommitEvent): void {
+    for (const l of this.commitListeners) l(event);
   }
 }
