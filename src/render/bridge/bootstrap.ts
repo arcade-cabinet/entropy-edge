@@ -9,6 +9,7 @@ import {
   type Codename,
   type DuelState,
   type SectorObjective,
+  plan as planRival,
 } from '@/sim';
 import { attachPointerInput, SimBridge, type ProgressSnapshot } from '@/ecs';
 import { createAmbient, createSfx, ensureStarted } from '@/audio';
@@ -29,6 +30,7 @@ import { BLOCK_DEFINITIONS } from './blocks';
 export interface BootstrapOptions {
   canvas: HTMLCanvasElement;
   seed?: string | null;
+  autoplay?: boolean;
   onDuelChange?: (state: DuelState) => void;
   onObjective?: (objective: SectorObjective) => void;
   onCodename?: (codename: Codename) => void;
@@ -258,8 +260,75 @@ export async function bootstrap(options: BootstrapOptions): Promise<Teardown> {
 
   // Pointer input — tap/drag-to-place cubes.
   let detachPointer: (() => void) | null = null;
+  let autoplayInterval: ReturnType<typeof setInterval> | null = null;
+
   const tryAttachPointer = () => {
     if (detachPointer || !cameraRef) return;
+    
+    if (options.autoplay) {
+      // AI vs AI Autoplay Mode
+      armAudio();
+      let autoplayGuard = 0;
+      let active = true;
+
+      const runAutoplayTurn = async () => {
+        if (!active || !cameraRef) return;
+        if (bridge.state.status.kind !== 'ongoing') return;
+        
+        if (bridge.state.turn === 'you') {
+          autoplayGuard++;
+          const plan = planRival({
+            grid: bridge.grid,
+            objective: objective,
+            me: 'you',
+            anchor: yourAnchor,
+            rng: seedRng.fork(`auto-you-${bridge.state.round}-${bridge.state.youRemaining}-${autoplayGuard}`),
+          });
+          
+          if (plan) {
+            try {
+              bridge.commitPlayer({ kind: plan.kind, origin: plan.origin });
+            } catch (e: any) {
+              console.error('Autoplay AI threw on placement:', e.message);
+              // Illegal placement fallback
+              bridge.endYourTurn();
+            }
+          } else {
+            console.warn('Autoplay AI could not plan a move');
+            bridge.endYourTurn();
+          }
+
+          if (bridge.state.youRemaining === 0 && bridge.state.turn === 'you') {
+            bridge.endYourTurn();
+          }
+
+          // If turn transitioned to rival, let rival move after a delay
+          const isNowRival = bridge.state.turn === 'rival' as string;
+          if (isNowRival) {
+            setTimeout(() => {
+              try {
+                bridge.runRivalTurn();
+              } catch {
+                // Ignore if unmounted
+              }
+              if (active) setTimeout(runAutoplayTurn, 100);
+            }, 600);
+          } else {
+            if (active) setTimeout(runAutoplayTurn, 600);
+          }
+        }
+      };
+
+      setTimeout(runAutoplayTurn, 1000);
+      
+      // Satisfy the pointer return for cleanup
+      detachPointer = () => {
+        active = false;
+      };
+      return;
+    }
+
+    // Normal Human Player Mode
     detachPointer = attachPointerInput({
       canvas,
       cameraHost: cameraRef,

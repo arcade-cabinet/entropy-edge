@@ -213,6 +213,8 @@ function Playing({ explicitSeed, onRestart, onExit }: PlayingProps) {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const seed = explicitSeed ?? readSeedFromLocation(window.location.search);
+    const autoplay = new URLSearchParams(window.location.search).get('autoplay') === '1';
+    
     let disposed = false;
     let disposer: (() => void) | null = null;
     (async () => {
@@ -222,6 +224,7 @@ function Playing({ explicitSeed, onRestart, onExit }: PlayingProps) {
       disposer = await mod.bootstrap({
         canvas,
         seed,
+        autoplay,
         onDuelChange: setDuelState,
         onObjective: setObjective,
         onProgress: setProgress,
