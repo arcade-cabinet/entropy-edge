@@ -10,6 +10,7 @@ import { motion } from 'framer-motion';
 
 export interface LandingProps {
   onEnter: () => void;
+  onDaily: () => void;
 }
 
 const chipBase = {
@@ -23,7 +24,7 @@ const chipBase = {
   padding: '6px 14px',
 };
 
-export function Landing({ onEnter }: LandingProps) {
+export function Landing({ onEnter, onDaily }: LandingProps) {
   return (
     <main
       style={{
@@ -96,30 +97,53 @@ export function Landing({ onEnter }: LandingProps) {
           <span style={chipBase}>Brace every span</span>
           <span style={chipBase}>Claim the tier</span>
         </motion.div>
-        <motion.button
-          initial={{ opacity: 0, scale: 0.97 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ duration: 0.4, delay: 0.35 }}
-          type="button"
-          onPointerUp={onEnter}
-          className="ee-display"
-          style={{
-            marginTop: 24,
-            padding: '14px 34px',
-            background: 'var(--color-signal, #ff6b1a)',
-            color: '#0c0a0a',
-            border: 'none',
-            borderRadius: 4,
-            fontSize: 15,
-            fontWeight: 600,
-            letterSpacing: '0.14em',
-            textTransform: 'uppercase',
-            cursor: 'pointer',
-            boxShadow: '0 8px 28px rgba(255, 107, 26, 0.18)',
-          }}
-        >
-          Enter the Lattice
-        </motion.button>
+        <div style={{ display: 'flex', gap: 16, marginTop: 24, flexWrap: 'wrap', justifyContent: 'center' }}>
+          <motion.button
+            initial={{ opacity: 0, scale: 0.97 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.4, delay: 0.35 }}
+            type="button"
+            onPointerUp={onEnter}
+            className="ee-display"
+            style={{
+              padding: '14px 34px',
+              background: 'var(--color-signal, #ff6b1a)',
+              color: '#0c0a0a',
+              border: 'none',
+              borderRadius: 4,
+              fontSize: 15,
+              fontWeight: 600,
+              letterSpacing: '0.14em',
+              textTransform: 'uppercase',
+              cursor: 'pointer',
+              boxShadow: '0 8px 28px rgba(255, 107, 26, 0.18)',
+            }}
+          >
+            Enter the Lattice
+          </motion.button>
+          
+          <motion.button
+            initial={{ opacity: 0, scale: 0.97 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.4, delay: 0.45 }}
+            type="button"
+            onPointerUp={onDaily}
+            className="ee-display"
+            style={{
+              padding: '14px 24px',
+              background: 'transparent',
+              color: 'var(--color-monument, #2ee5b8)',
+              border: '1px solid rgba(46, 229, 184, 0.4)',
+              borderRadius: 4,
+              fontSize: 15,
+              letterSpacing: '0.14em',
+              textTransform: 'uppercase',
+              cursor: 'pointer',
+            }}
+          >
+            Daily Sector
+          </motion.button>
+        </div>
       </div>
     </main>
   );

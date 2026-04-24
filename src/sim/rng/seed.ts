@@ -34,6 +34,16 @@ export function resolveSeed(raw: string | null | undefined): ResolvedSeed {
   return { rng: new Rng(codename.slug), codename };
 }
 
+export function resolveDailySeed(now: Date = new Date()): ResolvedSeed {
+  const y = now.getUTCFullYear();
+  const m = String(now.getUTCMonth() + 1).padStart(2, '0');
+  const d = String(now.getUTCDate()).padStart(2, '0');
+  const dailyStr = `daily-${y}${m}${d}`;
+  const scratchRng = new Rng(dailyStr);
+  const codename = rollCodename(scratchRng);
+  return { rng: new Rng(codename.slug), codename };
+}
+
 /** Read ?seed=... from a URL search string; null if absent. */
 export function readSeedFromLocation(search: string): string | null {
   return new URLSearchParams(search).get('seed');

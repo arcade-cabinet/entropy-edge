@@ -4,6 +4,7 @@ import type { Rng } from '@/sim/rng';
 import { evaluate, type SectorObjective } from '@/sim/objective';
 import { checkPlacement, commitPlacement, type PlacementRequest } from '@/sim/placement';
 import { plan as planRival, type RivalContext } from '@/sim/yuka-agent';
+import { collapseChain } from '@/sim/stability';
 
 /**
  * Duel — turn loop on a shared grid. Both builders share the lattice.
@@ -131,6 +132,10 @@ export class DuelController {
   }
 
   private afterCommit(who: PlayerId): void {
+    // 1. Resolve physics (drops overloaded structures)
+    collapseChain(this.config.grid);
+
+    // 2. Evaluate claim
     const progress = evaluate(this.config.grid, this.config.objective, who);
     if (progress.claimed) {
       const monuments: Array<{ owner: PlayerId; pos: Vec3 }> = [];
