@@ -33,3 +33,7 @@ ios/App/App.xcworkspace/xcuserdata/
 
 # TypeScript composite build cache
 *.tsbuildinfo
+
+# Compiled content (PR G pipeline emits into config/compiled/)
+config/compiled/
+

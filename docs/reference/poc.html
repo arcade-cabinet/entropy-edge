@@ -1,0 +1,634 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Entropy's Edge - Sector Stabilization</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;700&display=swap');
+
+        :root {
+            --cyan: #00b3cc;
+            --cyan-glow: #00e5ff;
+            --magenta: #ff0055;
+            --gold: #ffcc00;
+            --light-bg: #e6eaf0;
+            --panel-bg: rgba(10, 15, 25, 0.9);
+            --danger: #ff1111;
+            --success: #00ff88;
+        }
+
+        body, html {
+            margin: 0; padding: 0; width: 100%; height: 100%;
+            overflow: hidden;
+            background-color: var(--light-bg);
+            font-family: 'Rajdhani', sans-serif;
+            user-select: none; -webkit-user-select: none;
+        }
+
+        #game-canvas { display: block; width: 100%; height: 100%; }
+
+        /* UI Overlays */
+        #ui-layer {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            pointer-events: none;
+            display: flex; flex-direction: column; justify-content: space-between;
+            padding: 20px; box-sizing: border-box; z-index: 20;
+        }
+
+        .hud-top {
+            display: flex; justify-content: space-between; align-items: flex-start;
+        }
+
+        .hud-center {
+            position: absolute;
+            top: 20px; left: 50%;
+            transform: translateX(-50%) translateY(-50px); /* Hidden state */
+            background: var(--panel-bg);
+            border: 2px solid var(--gold);
+            padding: 10px 30px; border-radius: 4px;
+            box-shadow: 0 10px 30px rgba(255, 204, 0, 0.2);
+            backdrop-filter: blur(10px);
+            text-align: center;
+            opacity: 0; transition: transform 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.6s ease;
+        }
+
+        .hud-center.booted { transform: translateX(-50%) translateY(0); opacity: 1; }
+
+        .goal-title { font-size: 14px; color: var(--gold); letter-spacing: 3px; font-weight: 700; text-transform: uppercase; }
+        .goal-tracker { font-size: 32px; color: white; font-weight: 700; margin-top: 4px; }
+
+        .hud-panel {
+            background: var(--panel-bg);
+            border: 2px solid rgba(255, 255, 255, 0.2);
+            border-radius: 4px; padding: 12px 24px;
+            color: white; text-transform: uppercase;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+            backdrop-filter: blur(10px);
+            min-width: 160px;
+            transform: translateY(-50px); opacity: 0;
+            transition: transform 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.6s ease, border-color 0.2s ease;
+        }
+
+        .hud-panel.booted { transform: translateY(0); opacity: 1; }
+
+        .hud-label { font-size: 14px; color: #a0b4c8; letter-spacing: 2px; margin-bottom: 2px; font-weight: 700; }
+        #score-display { font-size: 32px; font-weight: 700; color: var(--cyan-glow); }
+
+        #timer-container {
+            text-align: center; background: var(--panel-bg);
+            padding: 15px 40px; border-radius: 8px;
+            border: 3px solid white; box-shadow: 0 15px 40px rgba(0, 0, 0, 0.3);
+            position: relative; overflow: hidden;
+            transform: scale(0.8); opacity: 0;
+            transition: transform 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.6s ease;
+        }
+        
+        #timer-container.booted { transform: scale(1); opacity: 1; }
+
+        #resonance-bar-container { position: absolute; bottom: 0; left: 0; width: 100%; height: 6px; background: rgba(255,255,255,0.1); }
+        #resonance-fill { height: 100%; width: 0%; background: var(--cyan-glow); transition: width 0.1s linear, background 0.3s ease; box-shadow: 0 0 10px var(--cyan-glow); }
+        .timer-label { font-size: 16px; color: white; text-transform: uppercase; letter-spacing: 3px; }
+        #timer-display { font-size: 64px; font-weight: 700; color: white; line-height: 1; }
+
+        #distance-panel { text-align: right; border-color: rgba(255, 0, 85, 0.4); }
+        #distance-display { font-size: 32px; color: white; font-weight: 700; }
+
+        #danger-vignette { position: absolute; top: 0; left: 0; width: 100%; height: 100%; box-shadow: inset 0 0 0px var(--danger); pointer-events: none; transition: box-shadow 0.2s ease; z-index: 10; }
+        #success-flash { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: white; opacity: 0; pointer-events: none; transition: opacity 0.5s ease; z-index: 15; }
+
+        /* Menus */
+        .menu-overlay {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: linear-gradient(180deg, rgba(10, 15, 25, 0.95) 0%, rgba(10, 15, 25, 0.5) 100%);
+            backdrop-filter: blur(8px);
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+            pointer-events: all; z-index: 100; color: white; text-align: center;
+            transition: opacity 0.5s ease;
+        }
+
+        h1 { font-size: 80px; color: white; text-shadow: 0 0 30px var(--cyan-glow); margin-bottom: 20px; text-transform: uppercase; letter-spacing: 10px; }
+        .success-title { color: var(--success); text-shadow: 0 0 30px var(--success); }
+        .danger-title { color: var(--danger); text-shadow: 0 0 30px var(--danger); }
+        
+        .btn {
+            background: var(--cyan-glow); color: var(--panel-bg);
+            font-family: 'Rajdhani', sans-serif; font-size: 30px; font-weight: 700; text-transform: uppercase;
+            padding: 20px 60px; border: none; border-radius: 4px; cursor: pointer;
+            box-shadow: 0 10px 40px rgba(0, 229, 255, 0.4);
+            transition: all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275); letter-spacing: 4px;
+            margin-top: 20px;
+        }
+        .btn:hover { transform: scale(1.1); box-shadow: 0 15px 50px rgba(0, 229, 255, 0.7); }
+        .btn-success { background: var(--success); box-shadow: 0 10px 40px rgba(0, 255, 136, 0.4); }
+        .btn-success:hover { box-shadow: 0 15px 50px rgba(0, 255, 136, 0.7); }
+        .btn-danger { background: var(--danger); color: white; box-shadow: 0 10px 40px rgba(255, 17, 17, 0.4); }
+
+        .hidden { opacity: 0; pointer-events: none; }
+
+        #crosshair {
+            position: absolute; top: 50%; left: 50%; width: 10px; height: 10px;
+            border: 2px solid var(--cyan-glow); border-radius: 50%; transform: translate(-50%, -50%);
+            pointer-events: none; z-index: 15; opacity: 0; transition: opacity 0.5s ease;
+        }
+
+        #tutorial-overlay {
+            position: absolute; top: 75%; left: 50%; transform: translate(-50%, -50%);
+            text-align: center; pointer-events: none; z-index: 20;
+            opacity: 0; transition: opacity 0.5s ease;
+        }
+        
+        #tutorial-title { font-size: 24px; font-weight: 700; color: var(--cyan-glow); text-transform: uppercase; letter-spacing: 4px; margin-bottom: 8px; background: var(--panel-bg); display: inline-block; padding: 4px 12px; border-radius: 4px; }
+        #tutorial-instruction { font-size: 18px; color: white; background: var(--panel-bg); padding: 10px 20px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.1); box-shadow: 0 10px 20px rgba(0,0,0,0.3); }
+
+        #combo-popup { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -150%); color: var(--gold); font-size: 40px; font-weight: 700; text-transform: uppercase; pointer-events: none; opacity: 0; transition: all 0.3s ease; z-index: 25; }
+    </style>
+</head>
+<body>
+
+    <canvas id="game-canvas"></canvas>
+    <div id="danger-vignette"></div>
+    <div id="success-flash"></div>
+    <div id="crosshair"></div>
+    <div id="combo-popup">Resonance Max</div>
+
+    <div id="ui-layer">
+        <div class="hud-top">
+            <div class="hud-panel" id="score-panel">
+                <div class="hud-label">TOTAL SCORE</div>
+                <div id="score-display">0 PTS</div>
+            </div>
+
+            <!-- THE NEW CLEAR GOAL TRACKER -->
+            <div class="hud-center" id="goal-panel">
+                <div class="goal-title" id="sector-title">Sector 1</div>
+                <div class="goal-tracker" id="anchor-tracker">ANCHORS: 0 / 3</div>
+            </div>
+            
+            <div id="timer-container">
+                <div class="timer-label">STABILITY</div>
+                <div id="timer-display">20.0s</div>
+                <div id="resonance-bar-container">
+                    <div id="resonance-fill"></div>
+                </div>
+            </div>
+
+            <div class="hud-panel" id="distance-panel">
+                <div class="hud-label">ANCHOR DISTANCE</div>
+                <div id="distance-display">0.0m</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MAIN MENU -->
+    <div id="start-menu" class="menu-overlay">
+        <h1>Entropy's Edge</h1>
+        <div style="background: rgba(0,0,0,0.5); padding: 25px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1); max-width: 600px; margin-bottom: 20px;">
+            <p style="font-size: 22px; color: #dce1e8; margin-bottom: 15px; font-weight: 700;">
+                Reality is fracturing. You must stabilize the Sectors.
+            </p>
+            <p style="font-size: 20px; color: #a0b4c8;">
+                Construct paths to reach the <span style="color:var(--magenta); font-weight:700;">Reality Anchors</span> before Sector Stability reaches zero. Securing an Anchor restores time and purges unstable paths.
+            </p>
+        </div>
+        <button class="btn" id="start-btn">Initialize Link</button>
+    </div>
+
+    <!-- LEVEL COMPLETE MENU -->
+    <div id="level-complete-menu" class="menu-overlay hidden">
+        <h1 class="success-title">SECTOR STABILIZED</h1>
+        <p style="font-size: 28px; color: white; margin-bottom: 10px;" id="level-stats">Anchors Secured: 3</p>
+        <p style="font-size: 20px; color: #a0b4c8; margin-bottom: 30px;">The void retreats... for now. Next Sector requires more anchors.</p>
+        <button class="btn btn-success" id="next-level-btn">Proceed to Next Sector</button>
+    </div>
+
+    <!-- GAME OVER MENU -->
+    <div id="game-over-menu" class="menu-overlay hidden" style="background: rgba(15, 5, 5, 0.95);">
+        <h1 class="danger-title">SECTOR COLLAPSED</h1>
+        <p id="final-score" style="font-size: 32px; color: white; margin-bottom: 30px;">Total Score: 0</p>
+        <button class="btn btn-danger" id="restart-btn">Restart Simulation</button>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
+    <script>
+        const BLOCK_SIZE = 1;
+        const SAFE_ZONE_RADIUS = 8;
+        const COMBO_WINDOW = 0.8; 
+        
+        // GAME STATE & PROGRESSION
+        const state = {
+            phase: 'MENU', // MENU, SWOOP, CALIBRATING, PLAYING, LEVEL_COMPLETE, GAMEOVER
+            level: 1,
+            anchorsSecuredThisLevel: 0,
+            anchorsRequired: 3, // Scales up each level
+            
+            time: 20.0,
+            score: 0,
+            totalAnchors: 0,
+            grid: new Map(),
+            fallingBlocks: [],
+            shockwaves: [],
+            cameraShake: 0,
+            resonance: 0,
+            lastPlacementTime: 0,
+            isResonanceMax: false,
+            swoopProgress: 0
+        };
+
+        const canvas = document.getElementById('game-canvas');
+        const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        renderer.shadowMap.enabled = true;
+        
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0xe6eaf0);
+        scene.fog = new THREE.FogExp2(0xe6eaf0, 0.04);
+
+        const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+        const isometricOffset = new THREE.Vector3(15, 14, 15);
+        let cameraTarget = new THREE.Vector3(0, 0, 0);
+        
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.6); scene.add(ambientLight);
+        const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+        dirLight.position.set(10, 25, 10); dirLight.castShadow = true; dirLight.shadow.mapSize.set(1024, 1024);
+        scene.add(dirLight);
+
+        // SHADERS & MATERIALS
+        const gridShaderMat = new THREE.ShaderMaterial({
+            uniforms: { time: { value: 0 }, glowColor: { value: new THREE.Color(0x00b3cc) }, pulseSpeed: { value: 2.0 } },
+            vertexShader: `varying vec3 vWorldPosition; void main() { vec4 w = modelMatrix * vec4(position, 1.0); vWorldPosition = w.xyz; gl_Position = projectionMatrix * viewMatrix * w; }`,
+            fragmentShader: `uniform float time; uniform vec3 glowColor; uniform float pulseSpeed; varying vec3 vWorldPosition; void main() { vec2 coord = vWorldPosition.xz; vec2 grid = abs(fract(coord - 0.5) - 0.5) / fwidth(coord); float line = min(grid.x, grid.y); float lineWeight = 1.0 - min(line, 1.0); float dist = length(coord); float pulse = (sin(dist * 0.4 - time * pulseSpeed) + 1.0) * 0.5; float fade = 1.0 - smoothstep(15.0, 60.0, dist); gl_FragColor = vec4(glowColor, lineWeight * pulse * fade * 0.7); }`,
+            transparent: true, depthWrite: false, extensions: { derivatives: true }
+        });
+        const gridFloor = new THREE.Mesh(new THREE.PlaneGeometry(400, 400), gridShaderMat);
+        gridFloor.rotation.x = -Math.PI / 2; gridFloor.position.y = -0.51; scene.add(gridFloor);
+
+        const blockGeo = new THREE.BoxGeometry(BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE);
+        const blockMat = new THREE.MeshPhysicalMaterial({ color: 0x111822, metalness: 0.7, roughness: 0.2, clearcoat: 1.0, flatShading: true });
+        const edgeGeo = new THREE.EdgesGeometry(blockGeo);
+        const edgeMat = new THREE.LineBasicMaterial({ color: 0x00e5ff, transparent: true, opacity: 0.8 });
+
+        const holoMat = new THREE.MeshBasicMaterial({ color: 0x00e5ff, transparent: true, opacity: 0.5 });
+        const nodeGeo = new THREE.IcosahedronGeometry(0.7, 1);
+        const nodeMat = new THREE.MeshStandardMaterial({ color: 0xff0055, emissive: 0xff0055, emissiveIntensity: 1.5, wireframe: true });
+
+        const hologram = new THREE.Mesh(blockGeo, holoMat);
+        scene.add(hologram);
+        const cursorLight = new THREE.PointLight(0x00e5ff, 2.5, 10);
+        hologram.add(cursorLight);
+
+        let targetNode = null, targetPillar = null;
+        let targetLight = new THREE.PointLight(0xff0055, 4.0, 20);
+        scene.add(targetLight);
+
+        const raycaster = new THREE.Raycaster();
+        const mouse = new THREE.Vector2();
+
+        // --- CORE GAMEPLAY LOGIC ---
+
+        function createBlock(x, y, z) {
+            const mesh = new THREE.Mesh(blockGeo, blockMat.clone());
+            mesh.position.set(x, y, z);
+            mesh.castShadow = true; mesh.receiveShadow = true;
+            mesh.add(new THREE.LineSegments(edgeGeo, edgeMat.clone()));
+            mesh.scale.set(0.1, 0.1, 0.1);
+            scene.add(mesh);
+            state.grid.set(`${Math.round(x)},${Math.round(y)},${Math.round(z)}`, mesh);
+            return mesh;
+        }
+
+        function generateNextNode(baseX, baseZ) {
+            if (targetNode) { scene.remove(targetNode); scene.remove(targetPillar); }
+            
+            // Distance scales with level and anchors reached
+            const dist = 10 + (state.level * 2) + (state.anchorsSecuredThisLevel * 2); 
+            const angle = Math.random() * Math.PI * 2;
+            const nx = Math.round(baseX + Math.cos(angle) * dist);
+            const nz = Math.round(baseZ + Math.sin(angle) * dist);
+            const ny = Math.round((Math.random() - 0.5) * 4);
+
+            targetNode = new THREE.Mesh(nodeGeo, nodeMat);
+            targetNode.position.set(nx, ny, nz);
+            scene.add(targetNode);
+
+            const pillarMat = new THREE.MeshBasicMaterial({ color: 0xff0055, transparent: true, opacity: 0.4 });
+            targetPillar = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 150), pillarMat);
+            targetPillar.position.set(nx, ny + 75, nz);
+            scene.add(targetPillar);
+            targetLight.position.set(nx, ny + 2, nz);
+        }
+
+        function updateGoalUI() {
+            const titleEl = document.getElementById('sector-title');
+            const trackerEl = document.getElementById('anchor-tracker');
+            if(titleEl) titleEl.innerText = `SECTOR ${state.level}`;
+            if(trackerEl) trackerEl.innerText = `ANCHORS: ${state.anchorsSecuredThisLevel} / ${state.anchorsRequired}`;
+        }
+
+        // --- BOOT UP SEQUENCE & UI ---
+        function initiateBootSequence() {
+            state.phase = 'SWOOPING';
+            state.swoopProgress = 0;
+            updateGoalUI();
+            
+            const startMenu = document.getElementById('start-menu');
+            if (startMenu) startMenu.classList.add('hidden');
+            
+            setTimeout(() => { const p = document.getElementById('score-panel'); if (p) p.classList.add('booted'); }, 800);
+            setTimeout(() => { const p = document.getElementById('goal-panel'); if (p) p.classList.add('booted'); }, 1000);
+            setTimeout(() => { const p = document.getElementById('distance-panel'); if (p) p.classList.add('booted'); }, 1200);
+            setTimeout(() => {
+                const t = document.getElementById('timer-container'); if (t) t.classList.add('booted');
+                const c = document.getElementById('crosshair'); if (c) c.style.opacity = '1';
+                const tutOverlay = document.getElementById('tutorial-overlay');
+                if (tutOverlay) {
+                    tutOverlay.style.opacity = '1';
+                    const tutTitle = document.getElementById('tutorial-title');
+                    if(tutTitle) tutTitle.innerText = "SYSTEM CALIBRATION";
+                    const tutInst = document.getElementById('tutorial-instruction');
+                    if(tutInst) tutInst.innerText = `Goal: Secure ${state.anchorsRequired} Anchors. Click core block to start.`;
+                }
+                state.phase = 'CALIBRATING';
+            }, 1600);
+        }
+
+        function triggerLevelComplete() {
+            state.phase = 'LEVEL_COMPLETE';
+            
+            // Massive success flash
+            const flash = document.getElementById('success-flash');
+            if(flash) {
+                flash.style.opacity = '1';
+                setTimeout(() => flash.style.opacity = '0', 800);
+            }
+
+            const menu = document.getElementById('level-complete-menu');
+            if(menu) menu.classList.remove('hidden');
+            
+            const stats = document.getElementById('level-stats');
+            if(stats) stats.innerText = `Anchors Secured: ${state.anchorsRequired}\nSector Score: ${state.score} PTS`;
+        }
+
+        function triggerNodeReached() {
+            state.totalAnchors++;
+            state.anchorsSecuredThisLevel++;
+            
+            const multiplier = state.isResonanceMax ? 2 : 1;
+            state.time += 15.0 * multiplier;
+            state.score += 1000 * state.anchorsSecuredThisLevel * multiplier;
+            state.cameraShake = 0.5;
+            
+            updateGoalUI();
+
+            const wave = new THREE.Mesh(new THREE.TorusGeometry(1, 0.2, 16, 64), new THREE.MeshBasicMaterial({ color: 0xff0055, transparent: true }));
+            wave.position.copy(targetNode.position);
+            wave.rotation.x = Math.PI/2;
+            scene.add(wave);
+            state.shockwaves.push({ mesh: wave, life: 1.0 });
+
+            for (let [key, mesh] of state.grid.entries()) {
+                if (mesh.position.distanceTo(targetNode.position) > SAFE_ZONE_RADIUS) {
+                    state.grid.delete(key);
+                    state.fallingBlocks.push({ mesh, velocity: Math.random() * 2 });
+                }
+            }
+
+            // Check Win Condition
+            if (state.anchorsSecuredThisLevel >= state.anchorsRequired) {
+                triggerLevelComplete();
+            } else {
+                generateNextNode(targetNode.position.x, targetNode.position.z);
+            }
+        }
+
+        function onPointerDown() {
+            if (['MENU', 'SWOOPING', 'GAMEOVER', 'LEVEL_COMPLETE'].includes(state.phase)) return;
+            if (!hologram.visible) return;
+            
+            if (state.phase === 'CALIBRATING') {
+                state.phase = 'PLAYING';
+                const tutTitle = document.getElementById('tutorial-title');
+                if (tutTitle) tutTitle.innerText = "LINK ESTABLISHED";
+                setTimeout(() => {
+                    const tutOverlay = document.getElementById('tutorial-overlay');
+                    if (tutOverlay) tutOverlay.style.opacity = '0';
+                }, 3000);
+            }
+
+            const pos = hologram.position.clone();
+            createBlock(pos.x, pos.y, pos.z);
+            
+            const now = performance.now() / 1000;
+            if (now - state.lastPlacementTime < COMBO_WINDOW) {
+                state.resonance = Math.min(1.0, state.resonance + 0.15);
+            } else { state.resonance = 0.15; }
+            state.lastPlacementTime = now;
+
+            const multiplier = state.isResonanceMax ? 2.5 : 1.0;
+            state.score += 10 * multiplier;
+            state.time += 0.2 * multiplier;
+            state.cameraShake = 0.05;
+            cameraTarget.copy(pos);
+
+            if (targetNode && pos.distanceTo(targetNode.position) < 1.6) triggerNodeReached();
+        }
+
+        // --- RENDER LOOP ---
+        const clock = new THREE.Clock();
+        function animate() {
+            requestAnimationFrame(animate);
+            const dt = clock.getDelta();
+            const elapsed = clock.getElapsedTime();
+
+            gridShaderMat.uniforms.time.value = elapsed;
+
+            if (state.phase === 'MENU') {
+                camera.position.x = Math.sin(elapsed * 0.2) * 12;
+                camera.position.y = 2 + Math.sin(elapsed * 0.5);
+                camera.position.z = Math.cos(elapsed * 0.2) * 12;
+                camera.lookAt(0, 1, 0);
+                
+                const starterBlock = state.grid.get("0,0,0");
+                if(starterBlock) {
+                    const pulse = 1 + (Math.sin(elapsed * 4) + 1) * 0.1;
+                    starterBlock.scale.set(pulse, pulse, pulse);
+                    starterBlock.children[0].material.color.setHex(0xffffff);
+                }
+            }
+
+            if (state.phase === 'SWOOPING') {
+                state.swoopProgress += dt * 0.8; 
+                const easeOutCub = 1 - Math.pow(1 - state.swoopProgress, 3);
+                
+                const currentOrbitPos = new THREE.Vector3(Math.sin(elapsed * 0.2) * 12, 2 + Math.sin(elapsed * 0.5), Math.cos(elapsed * 0.2) * 12);
+                const targetPos = new THREE.Vector3().copy(cameraTarget).add(isometricOffset);
+                
+                camera.position.lerpVectors(currentOrbitPos, targetPos, Math.min(easeOutCub, 1.0));
+                camera.lookAt(cameraTarget);
+                
+                const starterBlock = state.grid.get("0,0,0");
+                if(starterBlock) {
+                    starterBlock.scale.set(1,1,1);
+                    starterBlock.children[0].material.color.setHex(0x00e5ff);
+                }
+            }
+
+            if (state.phase === 'PLAYING' || state.phase === 'CALIBRATING') {
+                camera.position.lerp(new THREE.Vector3().copy(cameraTarget).add(isometricOffset), 0.08);
+                camera.lookAt(cameraTarget);
+
+                if (state.phase === 'PLAYING') {
+                    state.time -= dt;
+                    const timerEl = document.getElementById('timer-display');
+                    if (timerEl) timerEl.innerText = `${Math.max(0, state.time).toFixed(1)}s`;
+
+                    const dangerVignette = document.getElementById('danger-vignette');
+
+                    if (state.time <= 5.0) {
+                        gridShaderMat.uniforms.glowColor.value.set(0xff1111); gridShaderMat.uniforms.pulseSpeed.value = 12.0;
+                        if (dangerVignette) dangerVignette.style.boxShadow = `inset 0 0 150px rgba(255, 17, 17, 0.6)`;
+                        if (timerEl) timerEl.style.color = "var(--danger)";
+                    } else if (state.time <= 15.0) {
+                        gridShaderMat.uniforms.glowColor.value.set(0xffcc00); gridShaderMat.uniforms.pulseSpeed.value = 6.0;
+                        if (dangerVignette) dangerVignette.style.boxShadow = `none`;
+                        if (timerEl) timerEl.style.color = "white";
+                    } else {
+                        if (!state.isResonanceMax) gridShaderMat.uniforms.glowColor.value.set(0x00b3cc);
+                        gridShaderMat.uniforms.pulseSpeed.value = 2.0;
+                        if (timerEl) timerEl.style.color = "white";
+                    }
+
+                    if (state.time <= 0) {
+                        state.phase = 'GAMEOVER';
+                        const menu = document.getElementById('game-over-menu');
+                        if (menu) menu.classList.remove('hidden');
+                        const finalScore = document.getElementById('final-score');
+                        if (finalScore) finalScore.innerText = `Total Score: ${state.score}`;
+                    }
+                    
+                    const now = performance.now() / 1000;
+                    if (now - state.lastPlacementTime > COMBO_WINDOW) state.resonance = Math.max(0, state.resonance - dt * 0.5);
+                }
+
+                // UI Updates
+                const fill = document.getElementById('resonance-fill');
+                if (fill) fill.style.width = `${state.resonance * 100}%`;
+                
+                const comboPopup = document.getElementById('combo-popup');
+                if (state.resonance >= 1.0 && !state.isResonanceMax) {
+                    state.isResonanceMax = true; 
+                    if (comboPopup) comboPopup.style.opacity = '1';
+                    if (fill) fill.style.background = 'var(--gold)'; 
+                    gridShaderMat.uniforms.glowColor.value.set(0xffcc00);
+                } else if (state.resonance < 1.0 && state.isResonanceMax) {
+                    state.isResonanceMax = false; 
+                    if (comboPopup) comboPopup.style.opacity = '0';
+                    if (fill) fill.style.background = 'var(--cyan-glow)';
+                }
+
+                const scoreDisplay = document.getElementById('score-display');
+                if (scoreDisplay) scoreDisplay.innerText = `${state.score} PTS`;
+                
+                const distanceDisplay = document.getElementById('distance-display');
+                if (targetNode && distanceDisplay) distanceDisplay.innerText = `${cameraTarget.distanceTo(targetNode.position).toFixed(1)}m`;
+
+                // Hologram Logic
+                raycaster.setFromCamera(mouse, camera);
+                const intersects = raycaster.intersectObjects(Array.from(state.grid.values()));
+                if (intersects.length > 0) {
+                    const pos = intersects[0].object.position.clone().add(intersects[0].face.normal).round();
+                    if (!state.grid.has(`${pos.x},${pos.y},${pos.z}`)) {
+                        hologram.position.copy(pos); hologram.visible = true;
+                    } else hologram.visible = false;
+                } else hologram.visible = false;
+            }
+
+            // Universal Animations
+            gridFloor.position.x = cameraTarget.x; gridFloor.position.z = cameraTarget.z;
+            state.grid.forEach(b => { if (b.scale.x < 1.0) b.scale.lerp(new THREE.Vector3(1,1,1), 0.15); });
+            if (targetNode) { targetNode.rotation.y += dt * 2; targetNode.scale.setScalar(1 + Math.sin(elapsed * 5) * 0.1); }
+            if (state.cameraShake > 0 && state.phase !== 'SWOOPING') { state.cameraShake -= dt; camera.position.x += (Math.random() - 0.5) * state.cameraShake; }
+            state.shockwaves.forEach((sw, i) => { sw.life -= dt * 1.5; sw.mesh.scale.addScalar(dt * 30); sw.mesh.material.opacity = sw.life; if (sw.life <= 0) { scene.remove(sw.mesh); state.shockwaves.splice(i, 1); } });
+            state.fallingBlocks.forEach((fb, i) => { fb.velocity -= dt * 15; fb.mesh.position.y += fb.velocity * dt; if (fb.mesh.position.y < -20) { scene.remove(fb.mesh); state.fallingBlocks.splice(i, 1); } });
+
+            renderer.render(scene, camera);
+        }
+
+        window.addEventListener('mousemove', e => { mouse.x = (e.clientX / window.innerWidth) * 2 - 1; mouse.y = -(e.clientY / window.innerHeight) * 2 + 1; });
+        window.addEventListener('mousedown', onPointerDown);
+        window.addEventListener('resize', () => { camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth, window.innerHeight); });
+
+        // Build Initial Scene
+        createBlock(0,0,0);
+        generateNextNode(0,0);
+        clock.start();
+
+        // Button Triggers
+        const startBtn = document.getElementById('start-btn');
+        if (startBtn) startBtn.addEventListener('click', initiateBootSequence);
+        
+        function resetForNextLevel() {
+            state.grid.forEach(m => scene.remove(m)); state.grid.clear();
+            state.fallingBlocks.forEach(fb => scene.remove(fb.mesh)); state.fallingBlocks = [];
+            cameraTarget.set(0,0,0);
+            createBlock(0,0,0); 
+            generateNextNode(0,0);
+            updateGoalUI();
+            
+            // Reposition camera quickly for next level start
+            camera.position.copy(cameraTarget).add(isometricOffset);
+            camera.lookAt(cameraTarget);
+            
+            state.phase = 'CALIBRATING';
+            
+            const tutOverlay = document.getElementById('tutorial-overlay');
+            if (tutOverlay) {
+                tutOverlay.style.opacity = '1';
+                const tutTitle = document.getElementById('tutorial-title');
+                if(tutTitle) tutTitle.innerText = "SYSTEM RE-CALIBRATION";
+                const tutInst = document.getElementById('tutorial-instruction');
+                if(tutInst) tutInst.innerText = `Goal: Secure ${state.anchorsRequired} Anchors.`;
+            }
+        }
+
+        const nextLevelBtn = document.getElementById('next-level-btn');
+        if (nextLevelBtn) {
+            nextLevelBtn.addEventListener('click', () => {
+                state.level++;
+                state.anchorsRequired += 1; // Increase difficulty
+                state.anchorsSecuredThisLevel = 0;
+                // Give slightly less starting time per level, floor at 10s
+                state.time = Math.max(10.0, 20.0 - (state.level * 1.5)); 
+                state.resonance = 0;
+                
+                const menu = document.getElementById('level-complete-menu');
+                if (menu) menu.classList.add('hidden');
+                
+                resetForNextLevel();
+            });
+        }
+
+        const restartBtn = document.getElementById('restart-btn');
+        if (restartBtn) {
+            restartBtn.addEventListener('click', () => {
+                state.level = 1;
+                state.anchorsRequired = 3;
+                state.anchorsSecuredThisLevel = 0;
+                state.time = 20.0;
+                state.score = 0; 
+                state.totalAnchors = 0;
+                state.resonance = 0;
+                
+                const gameOverMenu = document.getElementById('game-over-menu');
+                if (gameOverMenu) gameOverMenu.classList.add('hidden');
+                
+                resetForNextLevel();
+            });
+        }
+
+        animate();
+    </script>
+</body>
+</html>

@@ -9,68 +9,87 @@ domain: quality
 
 ## Code quality
 
-### File length
+### Responsibility, not line count
 
-Soft limit 300 LOC per file. Hard exceptions:
+Files should do one thing well. The limit is whether a reader can
+hold the file in their head and whether you can change one thing
+without touching unrelated code. A 400-line content table or
+single-responsibility solver is fine; a 250-line file that secretly
+owns three unrelated subsystems is not.
 
-- `src/engine/simulation.ts` — deterministic sim. ~600 LOC because
-  it holds the sector seed tables, modifier matrix, and the full
-  tick/route logic. Acceptable up to 1000; split by subsystem past
-  that.
-- `src/ui/game/EdgeScene.tsx` — R3F scene. ~635 LOC because it
-  defines the grid, player sphere, anchor mesh, hazard blocks,
-  shockwaves, route lines, and camera all in one file. Acceptable
-  up to 900; split into per-primitive subcomponents past that.
-- `src/ui/Game.tsx` — orchestrator. ~300 LOC acceptable.
+No hard LOC gate. Shape-grammar shape classes, the stability solver,
+and the Yuka behavior tree are likely to exceed 300 LOC each because
+each is a single coherent responsibility. That is acceptable.
+
+Hooks may warn, never block.
 
 ### TypeScript
 
 - Strict mode via `tsconfig.app.json`.
 - `verbatimModuleSyntax: true` — use `import type` for type-only
   imports.
-- No `any`. Prefer discriminated unions.
-- Explicit return types on exported functions.
+- Biome `noExplicitAny: error`. Prefer discriminated unions.
+- Explicit return types on exported functions in `src/sim/**` and
+  `src/ecs/**`.
+- `noNonNullAssertion: warn`. Justify every `!` with a comment or a
+  guard.
 
 ### Linting and formatting
 
 - Biome 2.4. `pnpm lint` = `biome lint .`.
+- `quoteStyle: single`, `jsxQuoteStyle: double`, `semicolons:
+  always`, `trailingCommas: es5`, `lineWidth: 100`, `indentWidth: 2`.
+- `noRestrictedGlobals`: `localStorage` and `sessionStorage` are
+  blocked. Use `src/platform/storage.ts` (Capacitor Preferences).
 - No ESLint, no Prettier, no stylelint.
-- No Tailwind build. `src/theme/tw.css` holds the pinned utility
-  subset for any carry-over className usage.
+- No Tailwind build. `src/theme/tw.css` holds any pinned utility
+  subset.
 
 ### Dependencies
 
 - Weekly dependabot, minor + patch grouped.
-- three/@react-three/* pinned by major; review before bumping.
-- koota pinned by major; review before bumping.
-- react / react-dom share version, bump together.
+- `three`, `@jolly-pixel/*`, `@dimforge/rapier3d-compat` pinned —
+  review before bumping.
+- `yuka`, `tone`, `seedrandom`, `zod` pinned by major.
+- `react` / `react-dom` share version, bump together.
+
+## Three-layer contract
+
+Sim never imports engine. ECS never imports React/DOM. Render never
+mutates sim. Violations are bugs. See
+[`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md).
 
 ## Player-journey gate (non-negotiable)
 
 A PR may not merge if any of the below fail on desktop (1280×800) OR
 mobile-portrait (390×844) viewports.
 
-1. Cold load: first-render paints in under 2 seconds from navigation.
-2. Start screen shows "Entropy's Edge" in Space Grotesk orange, the
-   tagline, three verb chips (Secure anchors / Build resonance /
-   Hold the edge), and the "Initialize Link" CTA. No layout shift.
-3. Clicking "Initialize Link" transitions to gameplay within 600ms,
-   no console errors, R3F scene paints.
-4. Within 15 seconds of gameplay a cold player can identify: their
-   player sphere (cyan glow, centered), at least one magenta anchor,
-   blocked hazard cells, falling blocks above, and the HUD showing
-   Sector, Anchors, Score, Stability, Resonance.
-5. Touch-joystick anywhere in the viewport moves the sphere.
-6. No console errors throughout the run.
-7. Win finale reads "strategy that held" with a rating; loss finale
-   reads "Sector Collapsed" and offers restart. Neither screams.
+1. **Cold load** paints in under 2 seconds from navigation.
+2. **Landing** shows the title in Space Grotesk orange, the tagline,
+   three verb chips (*Build upward* · *Brace every span* · *Claim
+   the tier*), and a primary CTA ("Enter the Lattice"). No layout
+   shift.
+3. **Transition** from CTA to gameplay in under 600ms. No console
+   errors. Voxel canvas paints.
+4. **Orient within 15 seconds**: a cold player can identify their
+   ground-plane anchor, the rival's opposite-side ground, the tier
+   target ghosted at the goal y, and the HUD showing *Sector*,
+   *Tier*, *Your budget*, *Rival budget*, *Seed*.
+5. **Pointer-only**: every interaction works with finger taps and
+   drags. Keyboard handlers are forbidden in game code.
+6. **No console errors** throughout the run.
+7. **Claim finale** names the claim holder and the monument count;
+   **draw finale** reads "Sector held open. Monuments unchanged."
+   Both offer "Next Sector."
 
 ## Brand
 
-- Title: "Entropy's Edge"
-- Tagline: "Ride the edge of reserve depletion through hazard
-  sectors, each modifier rewriting the calculus, finish with a
-  reserve strategy that held."
+- Title: **Entropy Edge**.
+- Tagline: *Two builders, one lattice. Race the same objective,
+  brace what you build, and keep what was load-bearing when you
+  claimed it.*
+- Verb chips: **Build upward** · **Brace every span** · **Claim the
+  tier**.
 - Palette and fonts: see [`CLAUDE.md`](./CLAUDE.md) palette block.
-- Icon: a single cyan-beacon anchor silhouette over graphite.
-  TODO (tracked in `docs/STATE.md`).
+- Icon: a braced truss silhouette over graphite. Tracked in
+  `docs/STATE.md`.

@@ -8,6 +8,8 @@
   "files": {
     "includes": [
       "src/**/*.{ts,tsx,js,jsx,json}",
+      "scripts/**/*.{ts,mjs,js}",
+      "tests/**/*.{ts,tsx}",
       "e2e/**/*.{ts,tsx,js,jsx}",
       "package.json",
       "tsconfig.json",
@@ -41,13 +43,23 @@
         "noExplicitAny": "error"
       },
       "style": {
-        "noNonNullAssertion": "warn"
+        "noNonNullAssertion": "warn",
+        "noRestrictedGlobals": {
+          "level": "error",
+          "options": {
+            "deniedGlobals": {
+              "localStorage": "Use src/platform/storage.ts — Capacitor Preferences-backed.",
+              "sessionStorage": "Use src/platform/storage.ts — Capacitor Preferences-backed."
+            }
+          }
+        }
       }
     }
   },
   "javascript": {
     "formatter": {
-      "quoteStyle": "double",
+      "quoteStyle": "single",
+      "jsxQuoteStyle": "double",
       "trailingCommas": "es5",
       "semicolons": "always"
     }
