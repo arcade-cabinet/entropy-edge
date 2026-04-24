@@ -21,8 +21,9 @@ async function shot(label, viewport) {
     if (m.type() === 'error') errors.push(`[${label}] console: ${m.text()}`);
   });
   await page.goto(url, { waitUntil: 'load' });
-  // Let the voxel renderer paint at least one frame.
-  await page.waitForTimeout(2500);
+  // JollyPixel shows a Lit-based loading UI first, then hands off to the
+  // scene. 5s gives the tileset fetch + first chunk mesh build enough time.
+  await page.waitForTimeout(5000);
   await page.screenshot({ path: `${outDir}/ee-${label}.png`, fullPage: false });
   await page.close();
 }

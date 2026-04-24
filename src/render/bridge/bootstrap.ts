@@ -3,7 +3,13 @@ import RAPIER from '@dimforge/rapier3d-compat';
 import { Camera3DControls } from '@jolly-pixel/engine';
 import { Runtime, loadRuntime } from '@jolly-pixel/runtime';
 import { VoxelRenderer } from '@jolly-pixel/voxel.renderer';
-import { generateObjective, Rng, type DuelState, type SectorObjective } from '@/sim';
+import {
+  generateObjective,
+  resolveSeed,
+  type Codename,
+  type DuelState,
+  type SectorObjective,
+} from '@/sim';
 import { attachPointerInput, SimBridge } from '@/ecs';
 import { BLOCK_DEFINITIONS } from './blocks';
 
@@ -21,16 +27,18 @@ import { BLOCK_DEFINITIONS } from './blocks';
 
 export interface BootstrapOptions {
   canvas: HTMLCanvasElement;
-  seed?: string;
+  seed?: string | null;
   onDuelChange?: (state: DuelState) => void;
   onObjective?: (objective: SectorObjective) => void;
+  onCodename?: (codename: Codename) => void;
 }
 
 export type Teardown = () => void;
 
 export async function bootstrap(options: BootstrapOptions): Promise<Teardown> {
   const { canvas } = options;
-  const seed = options.seed ?? `run-${Math.floor(Date.now() / 1000)}`;
+  const { rng: seedRng, codename } = resolveSeed(options.seed ?? null);
+  options.onCodename?.(codename);
 
   await RAPIER.init();
   const rapierWorld = new RAPIER.World({ x: 0, y: -9.81, z: 0 });
@@ -74,8 +82,7 @@ export async function bootstrap(options: BootstrapOptions): Promise<Teardown> {
     tileSize: 32,
   });
 
-  // Sector 1 objective — deterministic from the seed.
-  const seedRng = new Rng(seed);
+  // Sector 1 objective — deterministic from the codename-backed seed.
   const objective = generateObjective(1, seedRng.fork('sector-1'));
   options.onObjective?.(objective);
 
@@ -87,7 +94,7 @@ export async function bootstrap(options: BootstrapOptions): Promise<Teardown> {
     objective,
     yourAnchor,
     rivalAnchor,
-    seed,
+    seed: codename.slug,
   });
 
   // Seed the two anchors visually so the player has something to build from.

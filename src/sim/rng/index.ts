@@ -1,5 +1,14 @@
 import seedrandom from 'seedrandom';
 
+export type { Codename, CodenameAdjective, CodenameNoun } from './codename';
+export { CODENAME_ADJECTIVES, CODENAME_NOUNS, parseCodename, rollCodename } from './codename';
+export {
+  readSeedFromLocation,
+  resolveSeed,
+  shareUrlForSeed,
+  type ResolvedSeed,
+} from './seed';
+
 /**
  * Rng — thin wrapper around seedrandom that supports named sub-streams via
  * fork(). Forking a parent produces a deterministic child whose own state is
