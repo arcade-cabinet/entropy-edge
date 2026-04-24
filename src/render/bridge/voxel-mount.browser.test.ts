@@ -13,12 +13,9 @@ test('mounts VoxelRenderer and takes a screenshot', async () => {
   canvas.style.height = '100%';
   container.appendChild(canvas);
 
-  let duelStateChanged = false;
-
   const teardown = await bootstrap({
     canvas,
     seed: 'test-seed',
-    onDuelChange: () => { duelStateChanged = true; },
   });
 
   // Let it render

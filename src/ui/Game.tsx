@@ -3,21 +3,32 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { isMuted, onMuteChange, setMuted } from '@/audio';
 import type { ProgressSnapshot } from '@/ecs';
 import type { Codename, DuelState, SectorObjective } from '@/sim';
-import { readSeedFromLocation, shareUrlForSeed } from '@/sim';
+import { readSeedFromLocation, shareUrlForSeed, resolveSeed } from '@/sim';
 import { Landing } from '@/ui/landing/Landing';
 
 /**
- * Game — hosts the landing page, then the voxel canvas + HUD overlay.
+ * Game — hosts the landing page, setup modal, then the voxel canvas + HUD overlay.
  *
  * JollyPixel + Rapier3D are lazy-loaded via dynamic import on CTA so the
  * cold landing bundle stays small and the first paint is fast.
  */
 
-type Phase = 'landing' | 'playing';
+type Phase = 'landing' | 'setup' | 'playing';
 
 export function Game() {
   const [phase, setPhase] = useState<Phase>('landing');
   const [runId, setRunId] = useState(0);
+  const [activeSeed, setActiveSeed] = useState<string | null>(null);
+
+  // If there's already a seed in the URL, skip setup and go straight to playing
+  useEffect(() => {
+    const seed = readSeedFromLocation(window.location.search);
+    if (seed && phase === 'landing') {
+      setActiveSeed(seed);
+      setPhase('playing');
+    }
+  }, [phase]);
+
   return (
     <AnimatePresence mode="wait">
       {phase === 'landing' ? (
@@ -28,7 +39,23 @@ export function Game() {
           exit={{ opacity: 0 }}
           transition={{ duration: 0.35 }}
         >
-          <Landing onEnter={() => setPhase('playing')} />
+          <Landing onEnter={() => setPhase('setup')} />
+        </motion.div>
+      ) : phase === 'setup' ? (
+        <motion.div
+          key="setup"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.35 }}
+        >
+          <SetupPhase
+            onStart={(seedSlug) => {
+              setActiveSeed(seedSlug);
+              setPhase('playing');
+            }}
+            onBack={() => setPhase('landing')}
+          />
         </motion.div>
       ) : (
         <motion.div
@@ -38,8 +65,13 @@ export function Game() {
           transition={{ duration: 0.35 }}
         >
           <Playing
+            explicitSeed={activeSeed}
             onRestart={() => setRunId((n) => n + 1)}
-            onExit={() => setPhase('landing')}
+            onExit={() => {
+              setActiveSeed(null);
+              window.history.replaceState(null, '', window.location.pathname);
+              setPhase('landing');
+            }}
           />
         </motion.div>
       )}
@@ -47,12 +79,124 @@ export function Game() {
   );
 }
 
+function SetupPhase({ onStart, onBack }: { onStart: (seed: string) => void; onBack: () => void }) {
+  const [codename, setCodename] = useState<Codename>(() => resolveSeed(null).codename);
+
+  const rollNew = () => setCodename(resolveSeed(null).codename);
+
+  return (
+    <main
+      style={{
+        width: '100vw',
+        height: '100svh',
+        background: 'var(--color-bg, #07080a)',
+        color: 'var(--color-fg, #dce1e8)',
+        display: 'grid',
+        placeItems: 'center',
+        padding: 32,
+      }}
+    >
+      <div
+        style={{
+          maxWidth: 480,
+          width: '100%',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          gap: 32,
+          textAlign: 'center',
+        }}
+      >
+        <div>
+          <h2 className="ee-display" style={{ color: 'var(--color-signal, #ff6b1a)', fontSize: 32, margin: '0 0 16px 0', textTransform: 'uppercase' }}>
+            Initialize Sector
+          </h2>
+          <p style={{ margin: 0, color: 'var(--color-fg-muted, #7a8190)', lineHeight: 1.5 }}>
+            Every sector is procedurally generated from a codename seed. 
+            The world's topography, goal height, and your rival's strategy are all locked to this phrase.
+          </p>
+        </div>
+
+        <div style={{ padding: '24px', border: '1px solid rgba(33, 212, 255, 0.25)', borderRadius: 8, width: '100%', background: 'rgba(26, 29, 36, 0.4)' }}>
+          <div style={{ fontSize: 12, fontFamily: 'var(--font-mono)', color: 'var(--color-beacon, #21d4ff)', textTransform: 'uppercase', letterSpacing: '0.15em', marginBottom: 12 }}>
+            Sector Codename
+          </div>
+          <div className="ee-display" style={{ fontSize: 28, color: 'var(--color-fg, #dce1e8)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+            {codename.display}
+          </div>
+          <div style={{ marginTop: 24 }}>
+            <button
+              onClick={rollNew}
+              style={{
+                background: 'transparent',
+                border: '1px solid var(--color-fg-muted, #7a8190)',
+                color: 'var(--color-fg, #dce1e8)',
+                padding: '8px 16px',
+                borderRadius: 4,
+                fontFamily: 'var(--font-mono)',
+                fontSize: 12,
+                textTransform: 'uppercase',
+                letterSpacing: '0.1em',
+                cursor: 'pointer',
+              }}
+            >
+              Reroll Coordinates
+            </button>
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', gap: 16, width: '100%' }}>
+          <button
+            onClick={onBack}
+            style={{
+              flex: 1,
+              padding: '14px 24px',
+              background: 'transparent',
+              color: 'var(--color-fg-muted, #7a8190)',
+              border: '1px solid rgba(122, 129, 144, 0.45)',
+              borderRadius: 4,
+              fontFamily: 'var(--font-mono)',
+              fontSize: 14,
+              letterSpacing: '0.14em',
+              textTransform: 'uppercase',
+              cursor: 'pointer',
+            }}
+          >
+            Cancel
+          </button>
+          <button
+            onClick={() => onStart(codename.slug)}
+            className="ee-display"
+            style={{
+              flex: 2,
+              padding: '14px 24px',
+              background: 'var(--color-signal, #ff6b1a)',
+              color: '#0c0a0a',
+              border: 'none',
+              borderRadius: 4,
+              fontSize: 15,
+              fontWeight: 600,
+              letterSpacing: '0.14em',
+              textTransform: 'uppercase',
+              cursor: 'pointer',
+              boxShadow: '0 8px 28px rgba(255, 107, 26, 0.18)',
+            }}
+          >
+            Deploy
+          </button>
+        </div>
+      </div>
+    </main>
+  );
+}
+
 interface PlayingProps {
+  explicitSeed: string | null;
   onRestart: () => void;
   onExit: () => void;
 }
 
-function Playing({ onRestart, onExit }: PlayingProps) {
+function Playing({ explicitSeed, onRestart, onExit }: PlayingProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [duelState, setDuelState] = useState<DuelState | null>(null);
   const [objective, setObjective] = useState<SectorObjective | null>(null);
@@ -62,7 +206,7 @@ function Playing({ onRestart, onExit }: PlayingProps) {
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    const seed = readSeedFromLocation(window.location.search);
+    const seed = explicitSeed ?? readSeedFromLocation(window.location.search);
     let disposed = false;
     let disposer: (() => void) | null = null;
     (async () => {
@@ -87,7 +231,7 @@ function Playing({ onRestart, onExit }: PlayingProps) {
       disposed = true;
       disposer?.();
     };
-  }, []);
+  }, [explicitSeed]);
 
   return (
     <main
@@ -426,7 +570,7 @@ function GameOverOverlay({
               boxShadow: '0 8px 24px rgba(255, 107, 26, 0.18)',
             }}
           >
-            Next Sector
+            Deploy Next
           </button>
           <button
             type="button"
@@ -444,7 +588,7 @@ function GameOverOverlay({
               cursor: 'pointer',
             }}
           >
-            Back to Landing
+            End Mission
           </button>
         </div>
       </div>

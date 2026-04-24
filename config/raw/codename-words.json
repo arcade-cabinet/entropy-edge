@@ -11,7 +11,13 @@
     "orthogonal",
     "discrete",
     "braided",
-    "folded"
+    "folded",
+    "latent",
+    "radiant",
+    "hollow",
+    "bound",
+    "shattered",
+    "golden"
   ],
   "nouns": [
     "fracture",
@@ -25,6 +31,10 @@
     "graph",
     "curve",
     "meridian",
-    "bracket"
+    "bracket",
+    "monolith",
+    "stratum",
+    "nexus",
+    "pylon"
   ]
 }

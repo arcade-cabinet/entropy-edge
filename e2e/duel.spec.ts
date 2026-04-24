@@ -12,7 +12,7 @@ test('landing → duel → build', async ({ page }) => {
     if (msg.type() === 'error') errors.push(`console: ${msg.text()}`);
   });
 
-  await page.goto('/?seed=tuned-manifold', { waitUntil: 'load' });
+  await page.goto('/?seed=brittle-tuned-manifold', { waitUntil: 'load' });
   await expect(page.getByRole('heading', { name: /entropy edge/i })).toBeVisible();
   await expect(page.getByRole('button', { name: /enter the lattice/i })).toBeVisible();
 
