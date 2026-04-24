@@ -1,17 +1,48 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { bootstrap } from '@/render/bridge/bootstrap';
+import { AnimatePresence, motion } from 'framer-motion';
 import { isMuted, onMuteChange, setMuted } from '@/audio';
 import type { Codename, DuelState, SectorObjective } from '@/sim';
 import { readSeedFromLocation, shareUrlForSeed } from '@/sim';
+import { Landing } from '@/ui/landing/Landing';
 
 /**
- * Game — hosts the voxel canvas + the HUD overlay.
+ * Game — hosts the landing page, then the voxel canvas + HUD overlay.
  *
- * React owns the canvas element and the DOM UI chrome. JollyPixel owns the
- * render loop and ECS. Sim-state flows from the engine into React via an
- * onDuelChange callback so the HUD stays in lockstep with the duel.
+ * JollyPixel + Rapier3D are lazy-loaded via dynamic import on CTA so the
+ * cold landing bundle stays small and the first paint is fast.
  */
+
+type Phase = 'landing' | 'playing';
+
 export function Game() {
+  const [phase, setPhase] = useState<Phase>('landing');
+  return (
+    <AnimatePresence mode="wait">
+      {phase === 'landing' ? (
+        <motion.div
+          key="landing"
+          initial={{ opacity: 1 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.35 }}
+        >
+          <Landing onEnter={() => setPhase('playing')} />
+        </motion.div>
+      ) : (
+        <motion.div
+          key="playing"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.35 }}
+        >
+          <Playing />
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
+}
+
+function Playing() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [duelState, setDuelState] = useState<DuelState | null>(null);
   const [objective, setObjective] = useState<SectorObjective | null>(null);
@@ -21,20 +52,28 @@ export function Game() {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const seed = readSeedFromLocation(window.location.search);
-    const teardownPromise = bootstrap({
-      canvas,
-      seed,
-      onDuelChange: setDuelState,
-      onObjective: setObjective,
-      onCodename: (cn) => {
-        setCodename(cn);
-        // Reflect the resolved codename back into the URL so refresh replays it.
-        const url = shareUrlForSeed(cn, window.location.origin, window.location.pathname);
-        window.history.replaceState(null, '', url);
-      },
-    });
+    let disposed = false;
+    let disposer: (() => void) | null = null;
+    (async () => {
+      // Lazy-load the renderer entry so the landing bundle stays lean.
+      const mod = await import('@/render/bridge/bootstrap');
+      if (disposed) return;
+      disposer = await mod.bootstrap({
+        canvas,
+        seed,
+        onDuelChange: setDuelState,
+        onObjective: setObjective,
+        onCodename: (cn) => {
+          setCodename(cn);
+          const url = shareUrlForSeed(cn, window.location.origin, window.location.pathname);
+          window.history.replaceState(null, '', url);
+        },
+      });
+      if (disposed) disposer?.();
+    })();
     return () => {
-      teardownPromise.then((dispose) => dispose());
+      disposed = true;
+      disposer?.();
     };
   }, []);
 
@@ -57,38 +96,6 @@ export function Game() {
       ) : null}
       <MuteToggle />
     </main>
-  );
-}
-
-function MuteToggle() {
-  const [muted, setMutedState] = useState<boolean>(() => isMuted());
-  useEffect(() => onMuteChange(setMutedState), []);
-  return (
-    <button
-      type="button"
-      aria-label={muted ? 'Unmute audio' : 'Mute audio'}
-      aria-pressed={muted}
-      onClick={() => setMuted(!muted)}
-      style={{
-        position: 'absolute',
-        right: 16,
-        bottom: 16,
-        width: 40,
-        height: 40,
-        borderRadius: 20,
-        background: 'rgba(26, 29, 36, 0.75)',
-        border: `1px solid ${muted ? 'var(--color-warn, #ff375f)' : 'rgba(33, 212, 255, 0.35)'}`,
-        color: muted ? 'var(--color-warn, #ff375f)' : 'var(--color-beacon, #21d4ff)',
-        cursor: 'pointer',
-        fontFamily: 'var(--font-mono)',
-        fontSize: 14,
-        pointerEvents: 'auto',
-        display: 'grid',
-        placeItems: 'center',
-      }}
-    >
-      {muted ? '×' : '♪'}
-    </button>
   );
 }
 
@@ -248,6 +255,38 @@ function BudgetBadge({
         <span style={{ color: 'var(--color-fg-muted, #7a8190)', fontSize: 14 }}>/{total}</span>
       </span>
     </div>
+  );
+}
+
+function MuteToggle() {
+  const [muted, setMutedState] = useState<boolean>(() => isMuted());
+  useEffect(() => onMuteChange(setMutedState), []);
+  return (
+    <button
+      type="button"
+      aria-label={muted ? 'Unmute audio' : 'Mute audio'}
+      aria-pressed={muted}
+      onClick={() => setMuted(!muted)}
+      style={{
+        position: 'absolute',
+        right: 16,
+        bottom: 16,
+        width: 40,
+        height: 40,
+        borderRadius: 20,
+        background: 'rgba(26, 29, 36, 0.75)',
+        border: `1px solid ${muted ? 'var(--color-warn, #ff375f)' : 'rgba(33, 212, 255, 0.35)'}`,
+        color: muted ? 'var(--color-warn, #ff375f)' : 'var(--color-beacon, #21d4ff)',
+        cursor: 'pointer',
+        fontFamily: 'var(--font-mono)',
+        fontSize: 14,
+        pointerEvents: 'auto',
+        display: 'grid',
+        placeItems: 'center',
+      }}
+    >
+      {muted ? '×' : '♪'}
+    </button>
   );
 }
 

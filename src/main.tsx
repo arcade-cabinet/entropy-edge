@@ -3,6 +3,9 @@ import { createRoot } from 'react-dom/client';
 import '@/theme/global.css';
 import '@/theme/tw.css';
 import { Game } from '@/ui/Game';
+import { configureCapacitor } from '@/platform/capacitor';
+
+void configureCapacitor();
 
 const mountNode = document.getElementById('root');
 if (!mountNode) {

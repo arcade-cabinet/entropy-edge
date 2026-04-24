@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <rect width="64" height="64" fill="#07080a" rx="10"/>
+  <!-- Base columns -->
+  <rect x="10" y="40" width="6" height="16" fill="#ff6b1a"/>
+  <rect x="48" y="40" width="6" height="16" fill="#ff6b1a"/>
+  <!-- Lintel -->
+  <rect x="16" y="34" width="32" height="6" fill="#21d4ff"/>
+  <!-- Diagonal braces -->
+  <path d="M16 40 L32 18" stroke="#21d4ff" stroke-width="3" stroke-linecap="round"/>
+  <path d="M48 40 L32 18" stroke="#21d4ff" stroke-width="3" stroke-linecap="round"/>
+  <!-- Apex -->
+  <rect x="28" y="12" width="8" height="8" fill="#2ee5b8"/>
+</svg>

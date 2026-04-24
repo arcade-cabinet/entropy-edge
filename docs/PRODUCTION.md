@@ -14,14 +14,14 @@ document is the live checklist. Update it as commits land.
 
 | Commit | Subject                                                         | Status      |
 | ------ | --------------------------------------------------------------- | ----------- |
-| A      | Foundation — docs, deps, skeleton                               | in progress |
-| B      | Sim — rng, grid, shape grammar, stability solver, yuka-agent    | pending     |
-| C      | Render — JollyPixel wiring, custom BlockShapes, tileset         | pending     |
-| D      | ECS — Actors, components, duel controller                       | pending     |
-| E      | Seed + codename + URL share                                     | pending     |
-| F      | Audio — Tone.js ambient + per-shape SFX                         | pending     |
-| G      | Content pipeline — Zod schemas + compile-content                | pending     |
-| H      | Polish — landing, icons, cold-60s playthrough, APK              | pending     |
+| A      | Foundation — docs, deps, skeleton                               | shipped     |
+| B      | Sim — rng, grid, shape grammar, stability solver, yuka-agent    | shipped     |
+| C      | Render — JollyPixel wiring, custom BlockShapes, tileset         | shipped     |
+| D      | ECS — Actors, components, duel controller                       | shipped     |
+| E      | Seed + codename + URL share                                     | shipped     |
+| F      | Audio — Tone.js ambient + per-shape SFX                         | shipped     |
+| G      | Content pipeline — Zod schemas + compile-content                | shipped     |
+| H      | Polish — landing, icons, cold-60s playthrough, APK              | shipped     |
 
 ## Commit A — Foundation
 

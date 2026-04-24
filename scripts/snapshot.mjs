@@ -21,10 +21,17 @@ async function shot(label, viewport) {
     if (m.type() === 'error') errors.push(`[${label}] console: ${m.text()}`);
   });
   await page.goto(url, { waitUntil: 'load' });
-  // JollyPixel shows a Lit-based loading UI first, then hands off to the
-  // scene. 5s gives the tileset fetch + first chunk mesh build enough time.
-  await page.waitForTimeout(5000);
-  await page.screenshot({ path: `${outDir}/ee-${label}.png`, fullPage: false });
+  // Landing page — framer-motion settles in under 500ms.
+  await page.waitForTimeout(700);
+  await page.screenshot({ path: `${outDir}/ee-${label}-landing.png`, fullPage: false });
+  // Enter the lattice.
+  const cta = page.getByRole('button', { name: /enter the lattice/i });
+  if (await cta.count()) {
+    await cta.click();
+    // JollyPixel + Rapier lazy-load here; 5s covers cold-cache first-paint.
+    await page.waitForTimeout(5000);
+    await page.screenshot({ path: `${outDir}/ee-${label}-play.png`, fullPage: false });
+  }
   await page.close();
 }
 
