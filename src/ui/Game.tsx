@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { isMuted, onMuteChange, setMuted } from '@/audio';
+import type { ProgressSnapshot } from '@/ecs';
 import type { Codename, DuelState, SectorObjective } from '@/sim';
 import { readSeedFromLocation, shareUrlForSeed } from '@/sim';
 import { Landing } from '@/ui/landing/Landing';
@@ -16,6 +17,7 @@ type Phase = 'landing' | 'playing';
 
 export function Game() {
   const [phase, setPhase] = useState<Phase>('landing');
+  const [runId, setRunId] = useState(0);
   return (
     <AnimatePresence mode="wait">
       {phase === 'landing' ? (
@@ -30,23 +32,32 @@ export function Game() {
         </motion.div>
       ) : (
         <motion.div
-          key="playing"
+          key={`playing-${runId}`}
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ duration: 0.35 }}
         >
-          <Playing />
+          <Playing
+            onRestart={() => setRunId((n) => n + 1)}
+            onExit={() => setPhase('landing')}
+          />
         </motion.div>
       )}
     </AnimatePresence>
   );
 }
 
-function Playing() {
+interface PlayingProps {
+  onRestart: () => void;
+  onExit: () => void;
+}
+
+function Playing({ onRestart, onExit }: PlayingProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [duelState, setDuelState] = useState<DuelState | null>(null);
   const [objective, setObjective] = useState<SectorObjective | null>(null);
   const [codename, setCodename] = useState<Codename | null>(null);
+  const [progress, setProgress] = useState<ProgressSnapshot | null>(null);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -63,6 +74,7 @@ function Playing() {
         seed,
         onDuelChange: setDuelState,
         onObjective: setObjective,
+        onProgress: setProgress,
         onCodename: (cn) => {
           setCodename(cn);
           const url = shareUrlForSeed(cn, window.location.origin, window.location.pathname);
@@ -92,9 +104,18 @@ function Playing() {
         style={{ width: '100%', height: '100%', display: 'block' }}
       />
       {duelState && objective ? (
-        <Hud state={duelState} objective={objective} codename={codename} />
+        <Hud state={duelState} objective={objective} codename={codename} progress={progress} />
       ) : null}
       <MuteToggle />
+      {duelState && objective ? (
+        <GameOverOverlay
+          state={duelState}
+          objective={objective}
+          progress={progress}
+          onRestart={onRestart}
+          onExit={onExit}
+        />
+      ) : null}
     </main>
   );
 }
@@ -103,12 +124,14 @@ function Hud({
   state,
   objective,
   codename,
+  progress,
 }: {
   state: DuelState;
   objective: SectorObjective;
   codename: Codename | null;
+  progress: ProgressSnapshot | null;
 }) {
-  const statusLabel = labelForStatus(state);
+  const banner = bannerForState(state, objective, progress);
   return (
     <div
       className="ee-display"
@@ -148,6 +171,18 @@ function Hud({
           </div>
         </div>
       </header>
+      <div
+        style={{
+          textAlign: 'center',
+          fontFamily: 'var(--font-mono)',
+          fontSize: 13,
+          letterSpacing: '0.12em',
+          textTransform: 'uppercase',
+          color: banner.tone,
+        }}
+      >
+        {banner.text}
+      </div>
       <footer
         style={{
           display: 'flex',
@@ -162,15 +197,19 @@ function Hud({
           label="You"
           remaining={state.youRemaining}
           total={objective.blockBudgetPerRound}
+          tier={progress?.yourMaxTier ?? 0}
+          tierTarget={objective.tierTarget}
           color="#ff6b1a"
         />
         <div style={{ textAlign: 'center', color: 'var(--color-fg-muted, #7a8190)' }}>
-          {statusLabel}
+          {labelForStatus(state)}
         </div>
         <BudgetBadge
           label="Rival"
           remaining={state.rivalRemaining}
           total={objective.blockBudgetPerRound}
+          tier={progress?.rivalMaxTier ?? 0}
+          tierTarget={objective.tierTarget}
           color="#7d5cff"
         />
       </footer>
@@ -240,11 +279,15 @@ function BudgetBadge({
   label,
   remaining,
   total,
+  tier,
+  tierTarget,
   color,
 }: {
   label: string;
   remaining: number;
   total: number;
+  tier: number;
+  tierTarget: number;
   color: string;
 }) {
   return (
@@ -254,7 +297,158 @@ function BudgetBadge({
         {remaining}
         <span style={{ color: 'var(--color-fg-muted, #7a8190)', fontSize: 14 }}>/{total}</span>
       </span>
+      <span
+        style={{
+          color: 'var(--color-fg-muted, #7a8190)',
+          fontSize: 11,
+          letterSpacing: '0.12em',
+        }}
+      >
+        Tier {tier}/{tierTarget}
+      </span>
     </div>
+  );
+}
+
+function GameOverOverlay({
+  state,
+  objective,
+  progress,
+  onRestart,
+  onExit,
+}: {
+  state: DuelState;
+  objective: SectorObjective;
+  progress: ProgressSnapshot | null;
+  onRestart: () => void;
+  onExit: () => void;
+}) {
+  const { status } = state;
+  if (status.kind !== 'claimed' && status.kind !== 'drawn') return null;
+  const youWon = status.kind === 'claimed' && status.winner === 'you';
+  const rivalWon = status.kind === 'claimed' && status.winner === 'rival';
+  const headline = youWon ? 'Sector Claimed' : rivalWon ? 'Rival Claimed' : 'Sector Held Open';
+  const tone = youWon
+    ? 'var(--color-monument, #2ee5b8)'
+    : rivalWon
+      ? 'var(--color-rival, #7d5cff)'
+      : 'var(--color-fg-muted, #7a8190)';
+  const roundsUsed = status.kind === 'claimed' ? status.round : objective.maxRounds;
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.4, delay: 0.15 }}
+      style={{
+        position: 'absolute',
+        inset: 0,
+        pointerEvents: 'auto',
+        background: 'rgba(7, 8, 10, 0.82)',
+        backdropFilter: 'blur(4px)',
+        display: 'grid',
+        placeItems: 'center',
+        padding: 24,
+      }}
+    >
+      <div
+        style={{
+          maxWidth: 440,
+          width: '100%',
+          textAlign: 'center',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          gap: 18,
+          color: 'var(--color-fg, #dce1e8)',
+        }}
+      >
+        <h2
+          className="ee-display"
+          style={{
+            margin: 0,
+            fontSize: 'clamp(32px, 6vw, 48px)',
+            textTransform: 'uppercase',
+            letterSpacing: '0.04em',
+            color: tone,
+            lineHeight: 1,
+          }}
+        >
+          {headline}
+        </h2>
+        <p
+          style={{
+            margin: 0,
+            fontFamily: 'var(--font-mono)',
+            fontSize: 13,
+            letterSpacing: '0.12em',
+            textTransform: 'uppercase',
+            color: 'var(--color-fg-muted, #7a8190)',
+          }}
+        >
+          Sector {objective.sector} · {objective.patternName} · {roundsUsed}/{objective.maxRounds} rounds
+        </p>
+        <dl
+          style={{
+            display: 'grid',
+            gridTemplateColumns: '1fr 1fr',
+            gap: '10px 24px',
+            margin: 0,
+            fontFamily: 'var(--font-mono)',
+            fontSize: 12,
+            color: 'var(--color-fg, #dce1e8)',
+          }}
+        >
+          <dt style={{ color: 'var(--color-signal, #ff6b1a)', textAlign: 'right' }}>You</dt>
+          <dd style={{ margin: 0, textAlign: 'left' }}>
+            tier {progress?.yourMaxTier ?? 0}/{objective.tierTarget} · {progress?.yourCellCount ?? 0} blocks
+          </dd>
+          <dt style={{ color: 'var(--color-rival, #7d5cff)', textAlign: 'right' }}>Rival</dt>
+          <dd style={{ margin: 0, textAlign: 'left' }}>
+            tier {progress?.rivalMaxTier ?? 0}/{objective.tierTarget} · {progress?.rivalCellCount ?? 0} blocks
+          </dd>
+        </dl>
+        <div style={{ display: 'flex', gap: 12, marginTop: 8, flexWrap: 'wrap', justifyContent: 'center' }}>
+          <button
+            type="button"
+            onClick={onRestart}
+            className="ee-display"
+            style={{
+              padding: '12px 26px',
+              background: 'var(--color-signal, #ff6b1a)',
+              color: '#0c0a0a',
+              border: 'none',
+              borderRadius: 4,
+              fontSize: 14,
+              fontWeight: 600,
+              letterSpacing: '0.14em',
+              textTransform: 'uppercase',
+              cursor: 'pointer',
+              boxShadow: '0 8px 24px rgba(255, 107, 26, 0.18)',
+            }}
+          >
+            Next Sector
+          </button>
+          <button
+            type="button"
+            onClick={onExit}
+            style={{
+              padding: '12px 22px',
+              background: 'transparent',
+              color: 'var(--color-fg-muted, #7a8190)',
+              border: '1px solid rgba(122, 129, 144, 0.45)',
+              borderRadius: 4,
+              fontFamily: 'var(--font-mono)',
+              fontSize: 12,
+              letterSpacing: '0.14em',
+              textTransform: 'uppercase',
+              cursor: 'pointer',
+            }}
+          >
+            Back to Landing
+          </button>
+        </div>
+      </div>
+    </motion.div>
   );
 }
 
@@ -288,6 +482,41 @@ function MuteToggle() {
       {muted ? '×' : '♪'}
     </button>
   );
+}
+
+interface Banner {
+  readonly text: string;
+  readonly tone: string;
+}
+
+function bannerForState(
+  state: DuelState,
+  objective: SectorObjective,
+  progress: ProgressSnapshot | null
+): Banner {
+  if (state.status.kind === 'claimed') {
+    return state.status.winner === 'you'
+      ? { text: 'You claimed the sector', tone: 'var(--color-monument, #2ee5b8)' }
+      : { text: 'Rival claimed the sector', tone: 'var(--color-rival, #7d5cff)' };
+  }
+  if (state.status.kind === 'drawn') {
+    return { text: 'Sector held open — draw', tone: 'var(--color-fg-muted, #7a8190)' };
+  }
+  const roundsLeft = Math.max(0, objective.maxRounds - state.round + 1);
+  const reached = progress?.yourMaxTier ?? 0;
+  const remaining = Math.max(0, objective.tierTarget - reached);
+  if (state.turn !== 'you') {
+    return { text: 'Rival building…', tone: 'var(--color-rival, #7d5cff)' };
+  }
+  if (remaining === 0) {
+    return { text: 'Hold connectivity to claim', tone: 'var(--color-beacon, #21d4ff)' };
+  }
+  return {
+    text: `Build ${remaining} tier${remaining === 1 ? '' : 's'} up · ${roundsLeft} round${
+      roundsLeft === 1 ? '' : 's'
+    } left`,
+    tone: 'var(--color-signal, #ff6b1a)',
+  };
 }
 
 function labelForStatus(state: DuelState): string {

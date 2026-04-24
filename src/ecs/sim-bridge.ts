@@ -18,6 +18,13 @@ export interface CommitEvent {
   readonly cellCount: number;
 }
 
+export interface ProgressSnapshot {
+  readonly yourMaxTier: number;
+  readonly rivalMaxTier: number;
+  readonly yourCellCount: number;
+  readonly rivalCellCount: number;
+}
+
 /**
  * SimBridge — glues the pure sim layer to a JollyPixel VoxelRenderer.
  *
@@ -45,6 +52,7 @@ export class SimBridge {
   private readonly mirroredCells = new Map<string, { owner: PlayerId; monument: boolean }>();
   private readonly listeners = new Set<(state: DuelState) => void>();
   private readonly commitListeners = new Set<(event: CommitEvent) => void>();
+  private readonly progressListeners = new Set<(progress: ProgressSnapshot) => void>();
   private _state: DuelState;
 
   constructor(private readonly config: SimBridgeConfig) {
@@ -73,6 +81,28 @@ export class SimBridge {
   onCommit(listener: (event: CommitEvent) => void): () => void {
     this.commitListeners.add(listener);
     return () => this.commitListeners.delete(listener);
+  }
+
+  onProgress(listener: (progress: ProgressSnapshot) => void): () => void {
+    this.progressListeners.add(listener);
+    return () => this.progressListeners.delete(listener);
+  }
+
+  progress(): ProgressSnapshot {
+    let yourMaxTier = 0;
+    let rivalMaxTier = 0;
+    let yourCellCount = 0;
+    let rivalCellCount = 0;
+    for (const cell of this.grid.values()) {
+      if (cell.owner === 'you') {
+        yourCellCount += 1;
+        if (cell.pos.y > yourMaxTier) yourMaxTier = cell.pos.y;
+      } else {
+        rivalCellCount += 1;
+        if (cell.pos.y > rivalMaxTier) rivalMaxTier = cell.pos.y;
+      }
+    }
+    return { yourMaxTier, rivalMaxTier, yourCellCount, rivalCellCount };
   }
 
   commitPlayer(req: { kind: ShapeKind; origin: Vec3 }): DuelState {
@@ -162,6 +192,10 @@ export class SimBridge {
 
   private emit(): void {
     for (const l of this.listeners) l(this._state);
+    if (this.progressListeners.size > 0) {
+      const snapshot = this.progress();
+      for (const l of this.progressListeners) l(snapshot);
+    }
   }
 
   private emitCommit(event: CommitEvent): void {

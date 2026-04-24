@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import RAPIER from '@dimforge/rapier3d-compat';
 import { Camera3DControls } from '@jolly-pixel/engine';
-import { Runtime, loadRuntime } from '@jolly-pixel/runtime';
+import { Runtime } from '@jolly-pixel/runtime';
 import { VoxelRenderer } from '@jolly-pixel/voxel.renderer';
 import {
   generateObjective,
@@ -10,10 +10,9 @@ import {
   type DuelState,
   type SectorObjective,
 } from '@/sim';
-import { attachPointerInput, SimBridge } from '@/ecs';
+import { attachPointerInput, SimBridge, type ProgressSnapshot } from '@/ecs';
 import { createAmbient, createSfx, ensureStarted } from '@/audio';
 import { BLOCK_DEFINITIONS } from './blocks';
-import { solve } from '@/sim';
 
 /**
  * JollyPixel runtime bootstrap.
@@ -33,6 +32,7 @@ export interface BootstrapOptions {
   onDuelChange?: (state: DuelState) => void;
   onObjective?: (objective: SectorObjective) => void;
   onCodename?: (codename: Codename) => void;
+  onProgress?: (progress: ProgressSnapshot) => void;
 }
 
 export type Teardown = () => void;
@@ -56,6 +56,28 @@ export async function bootstrap(options: BootstrapOptions): Promise<Teardown> {
   const dirLight = new THREE.DirectionalLight(new THREE.Color('#ffffff'), 1.6);
   dirLight.position.set(16, 28, 18);
   scene.add(ambientLight, dirLight);
+
+  // Ground lattice — 24×24 grid centered at origin so the player sees the
+  // build surface. Uses beacon cyan at low opacity so it reads as a hint, not
+  // a frame.
+  const ground = new THREE.GridHelper(
+    24,
+    24,
+    new THREE.Color('#21d4ff'),
+    new THREE.Color('#0f1115')
+  );
+  const groundMat = ground.material as THREE.LineBasicMaterial | THREE.LineBasicMaterial[];
+  if (Array.isArray(groundMat)) {
+    for (const m of groundMat) {
+      m.transparent = true;
+      m.opacity = 0.18;
+    }
+  } else {
+    groundMat.transparent = true;
+    groundMat.opacity = 0.18;
+  }
+  ground.position.y = -0.499;
+  scene.add(ground);
 
   let cameraRef: Camera3DControls | null = null;
   world.createActor('camera').addComponent(Camera3DControls, {}, (component) => {
@@ -88,6 +110,21 @@ export async function bootstrap(options: BootstrapOptions): Promise<Teardown> {
   const objective = generateObjective(1, seedRng.fork('sector-1'));
   options.onObjective?.(objective);
 
+  // Tier-target ring — a wide ring at the target Y so the player sees the goal.
+  // Signal-orange to match the player palette so "reach me" is unambiguous.
+  const tierMarker = new THREE.Mesh(
+    new THREE.RingGeometry(11.2, 11.6, 64),
+    new THREE.MeshBasicMaterial({
+      color: new THREE.Color('#ff6b1a'),
+      transparent: true,
+      opacity: 0.55,
+      side: THREE.DoubleSide,
+    })
+  );
+  tierMarker.rotation.x = -Math.PI / 2;
+  tierMarker.position.y = objective.tierTarget - 0.5;
+  scene.add(tierMarker);
+
   const yourAnchor = { x: -6, y: 0, z: 0 } as const;
   const rivalAnchor = { x: 6, y: 0, z: 0 } as const;
 
@@ -113,21 +150,42 @@ export async function bootstrap(options: BootstrapOptions): Promise<Teardown> {
     audioArmed = true;
     void ensureStarted().then(() => ambient.start(objective.difficultyBand));
   };
-  const updateAmbientStability = () => {
-    const state = solve(bridge.grid);
-    const total = bridge.grid.cellCount || 1;
-    const stableCount = total - state.stressed.size;
-    ambient.setStability(stableCount / total);
-    sfx.stress(state.stressed.size / Math.max(1, total));
+
+  // Stability feedback — import stability solver lazily and rAF-debounce so
+  // rapid rival-turn commits don't trigger N full solves in one microtask.
+  let stabilityRaf = 0;
+  let solverPromise: Promise<typeof import('@/sim').solve> | null = null;
+  const loadSolver = () => {
+    if (!solverPromise) {
+      solverPromise = import('@/sim').then((m) => m.solve);
+    }
+    return solverPromise;
+  };
+  const requestStabilityRefresh = () => {
+    if (stabilityRaf) return;
+    stabilityRaf = requestAnimationFrame(async () => {
+      stabilityRaf = 0;
+      const solve = await loadSolver();
+      const state = solve(bridge.grid);
+      const total = bridge.grid.cellCount || 1;
+      const stressed = state.stressed.size;
+      ambient.setStability((total - stressed) / total);
+      sfx.stress(stressed / total);
+    });
   };
 
   const offChange = bridge.onChange((state) => {
     options.onDuelChange?.(state);
-    updateAmbientStability();
+    requestStabilityRefresh();
     if (state.status.kind === 'claimed') {
       void sfx.claim();
     }
   });
+  const offProgress = options.onProgress
+    ? bridge.onProgress((snap) => options.onProgress?.(snap))
+    : null;
+  // Emit an initial progress snapshot so the HUD reflects the seeded anchors.
+  options.onProgress?.(bridge.progress());
   const offCommit = bridge.onCommit((event) => {
     void sfx.play(event.kind, event.owner);
   });
@@ -165,16 +223,29 @@ export async function bootstrap(options: BootstrapOptions): Promise<Teardown> {
     rapierWorld.step();
   });
 
-  loadRuntime(runtime).catch((error: unknown) => {
-    console.error('[entropy-edge] runtime load failed', error);
-  });
+  // Start the runtime directly — loadRuntime() adds a separate loading UI
+  // and fetches GPU benchmarks from unpkg.com which trips our CSP.
+  runtime.start();
 
   return () => {
+    if (stabilityRaf) {
+      cancelAnimationFrame(stabilityRaf);
+      stabilityRaf = 0;
+    }
     offChange();
+    offProgress?.();
     offCommit();
     detachPointer?.();
     ambient.stop();
     sfx.stop();
     runtime.stop?.();
+    tierMarker.geometry.dispose();
+    (tierMarker.material as THREE.Material).dispose();
+    ground.geometry.dispose();
+    if (Array.isArray(ground.material)) {
+      for (const m of ground.material) m.dispose();
+    } else {
+      ground.material.dispose();
+    }
   };
 }
