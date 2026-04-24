@@ -4,25 +4,32 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
+overrides:
+  three: ^0.184.0
+  '@types/three': ^0.184.0
+
 importers:
 
   .:
     dependencies:
       '@capacitor/android':
-        specifier: ^8.3.0
+        specifier: ^8.3.1
         version: 8.3.1(@capacitor/core@8.3.1)
       '@capacitor/app':
         specifier: ^8.1.0
         version: 8.1.0(@capacitor/core@8.3.1)
       '@capacitor/core':
-        specifier: ^8.3.0
+        specifier: ^8.3.1
         version: 8.3.1
       '@capacitor/haptics':
         specifier: ^8.0.2
         version: 8.0.2(@capacitor/core@8.3.1)
       '@capacitor/ios':
-        specifier: ^8.3.0
+        specifier: ^8.3.1
         version: 8.3.1(@capacitor/core@8.3.1)
+      '@capacitor/preferences':
+        specifier: ^8.0.1
+        version: 8.0.1(@capacitor/core@8.3.1)
       '@capacitor/screen-orientation':
         specifier: ^8.0.1
         version: 8.0.1(@capacitor/core@8.3.1)
@@ -33,7 +40,7 @@ importers:
         specifier: ^8.0.2
         version: 8.0.2(@capacitor/core@8.3.1)
       '@dimforge/rapier3d-compat':
-        specifier: 0.19.3
+        specifier: ^0.19.3
         version: 0.19.3
       '@fontsource/inter':
         specifier: ^5.2.8
@@ -45,32 +52,32 @@ importers:
         specifier: ^5.2.8
         version: 5.2.10
       '@jolly-pixel/engine':
-        specifier: 2.5.0
-        version: 2.5.0(three@0.183.2)
+        specifier: ^2.5.0
+        version: 2.5.0(three@0.184.0)
       '@jolly-pixel/runtime':
-        specifier: 3.3.0
-        version: 3.3.0(three@0.183.2)
+        specifier: ^3.3.0
+        version: 3.3.0(three@0.184.0)
       '@jolly-pixel/voxel.renderer':
-        specifier: 1.4.0
+        specifier: ^1.4.0
         version: 1.4.0
       framer-motion:
-        specifier: ^11.18.0
-        version: 11.18.2(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
+        specifier: ^12.38.0
+        version: 12.38.0(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
       gsap:
         specifier: ^3.15.0
         version: 3.15.0
       react:
-        specifier: ^19.1.0
+        specifier: ^19.2.5
         version: 19.2.5
       react-dom:
-        specifier: ^19.1.0
+        specifier: ^19.2.5
         version: 19.2.5(react@19.2.5)
       seedrandom:
         specifier: ^3.0.5
         version: 3.0.5
       three:
-        specifier: 0.183.2
-        version: 0.183.2
+        specifier: ^0.184.0
+        version: 0.184.0
       tone:
         specifier: ^15.1.22
         version: 15.1.22
@@ -82,13 +89,13 @@ importers:
         version: 4.3.6
     devDependencies:
       '@biomejs/biome':
-        specifier: ^2.4.11
+        specifier: ^2.4.13
         version: 2.4.13
       '@capacitor/cli':
-        specifier: ^8.3.0
+        specifier: ^8.3.1
         version: 8.3.1
       '@playwright/test':
-        specifier: ^1.58.2
+        specifier: ^1.59.1
         version: 1.59.1
       '@testing-library/react':
         specifier: ^16.3.2
@@ -97,17 +104,17 @@ importers:
         specifier: ^22.10.5
         version: 22.19.17
       '@types/react':
-        specifier: ^19.0.7
+        specifier: ^19.2.14
         version: 19.2.14
       '@types/react-dom':
-        specifier: ^19.0.3
+        specifier: ^19.2.3
         version: 19.2.3(@types/react@19.2.14)
       '@types/seedrandom':
         specifier: ^3.0.8
         version: 3.0.8
       '@types/three':
-        specifier: 0.183.0
-        version: 0.183.0
+        specifier: ^0.184.0
+        version: 0.184.0
       '@types/yuka':
         specifier: ^0.7.4
         version: 0.7.4
@@ -115,10 +122,10 @@ importers:
         specifier: ^5.0.4
         version: 5.2.0(vite@8.0.10(@types/node@22.19.17))
       '@vitest/browser':
-        specifier: ^4.1.4
+        specifier: ^4.1.5
         version: 4.1.5(vite@8.0.10(@types/node@22.19.17))(vitest@4.1.5)
       '@vitest/browser-playwright':
-        specifier: ^4.1.4
+        specifier: ^4.1.5
         version: 4.1.5(playwright@1.59.1)(vite@8.0.10(@types/node@22.19.17))(vitest@4.1.5)
       jsdom:
         specifier: ^27.0.0
@@ -126,14 +133,17 @@ importers:
       playwright:
         specifier: ^1.59.1
         version: 1.59.1
+      pngjs:
+        specifier: ^7.0.0
+        version: 7.0.0
       typescript:
         specifier: ~5.9.3
         version: 5.9.3
       vite:
-        specifier: ^8.0.9
+        specifier: ^8.0.10
         version: 8.0.10(@types/node@22.19.17)
       vitest:
-        specifier: ^4.1.4
+        specifier: ^4.1.5
         version: 4.1.5(@types/node@22.19.17)(@vitest/browser-playwright@4.1.5)(jsdom@27.4.0)(vite@8.0.10(@types/node@22.19.17))
 
 packages:
@@ -325,6 +335,11 @@ packages:
     peerDependencies:
       '@capacitor/core': ^8.3.0
 
+  '@capacitor/preferences@8.0.1':
+    resolution: {integrity: sha512-T6no3ebi79XJCk91U3Jp/liJUwgBdvHR+s6vhvPkPxSuch7z3zx5Rv1bdWM6sWruNx+pViuEGqZvbfCdyBvcHQ==}
+    peerDependencies:
+      '@capacitor/core': '>=8.0.0'
+
   '@capacitor/screen-orientation@8.0.1':
     resolution: {integrity: sha512-DPz/1YGmlAUDMg2ON+AGJp1eFn9IfVNP9VKI5zIU+jD5xAZ4JGxUDlY9MDCvEPQs7UCD53NduJpqvqhcnb32Kw==}
     peerDependencies:
@@ -451,12 +466,12 @@ packages:
   '@jolly-pixel/engine@2.5.0':
     resolution: {integrity: sha512-o88Ipu5jnKIh36FwgvaaeCEk5bxUk0t8cvhNbyjwUrtuxf/EgbN9O4ib75slbVRpUe/gU6D1ZMa9GzuRxdXNKw==}
     peerDependencies:
-      three: 0.182.0
+      three: ^0.184.0
 
   '@jolly-pixel/runtime@3.3.0':
     resolution: {integrity: sha512-g24sHUkpviE0K3sVbh5hBH+D+JFf4bRqhNr2VIK7r3YsPDR9r1Ft4dOKeHaQCtM7KZ7tJ1ShvkvbeNQ8gPuVgQ==}
     peerDependencies:
-      three: 0.182.0
+      three: ^0.184.0
 
   '@jolly-pixel/voxel.renderer@1.4.0':
     resolution: {integrity: sha512-9OIuWD65HPejcXrtixv35qlWGgwG+hVY87WlYMdG4tO5aUuwUO66ruNTBnX6/mQ/v4har663ZwAF1gYAydF11g==}
@@ -679,8 +694,8 @@ packages:
   '@types/stats.js@0.17.4':
     resolution: {integrity: sha512-jIBvWWShCvlBqBNIZt0KAshWpvSjhkwkEu4ZUcASoAvhmrgAUI2t1dXrjSL4xXVLB4FznPrIsX3nKXFl/Dt4vA==}
 
-  '@types/three@0.183.0':
-    resolution: {integrity: sha512-AaGkvloQhxdrfMm/HbY8cpOz1K1jkEELn6zjFoY3yhAiC7zhhZE19+gDBybYwKk+GqXmWKxqDCB43NqyW3+QZw==}
+  '@types/three@0.184.0':
+    resolution: {integrity: sha512-4mY2tZAu0y0B0567w7013BBXSpsP0+Z48NJvmNo4Y/Pf76yCyz6Jw4P3tUVs10WuYNXXZ+wmHyGWpCek3amJxA==}
 
   '@types/trusted-types@2.0.7':
     resolution: {integrity: sha512-ScaPdn1dQczgbl0QFTeTOmVHFULt394XJgOQNoyVhZ6r2vLnMLJfBPd53SB52T/3G36VI1/g2MZaX0cwDuXsfw==}
@@ -736,9 +751,6 @@ packages:
 
   '@vitest/utils@4.1.5':
     resolution: {integrity: sha512-76wdkrmfXfqGjueGgnb45ITPyUi1ycZ4IHgC2bhPDUfWHklY/q3MdLOAB+TF1e6xfl8NxNY0ZYaPCFNWSsw3Ug==}
-
-  '@webgpu/types@0.1.69':
-    resolution: {integrity: sha512-RPmm6kgRbI8e98zSD3RVACvnuktIja5+yLgDAkTmxLr90BEwdTXRQWNLF3ETTTyH/8mKhznZuN5AveXYFEsMGQ==}
 
   '@xmldom/xmldom@0.8.13':
     resolution: {integrity: sha512-KRYzxepc14G/CEpEGc3Yn+JKaAeT63smlDr+vjB8jRfgTBBI9wRj/nkQEO+ucV8p8I9bfKLWp37uHgFrbntPvw==}
@@ -935,8 +947,8 @@ packages:
   fflate@0.8.2:
     resolution: {integrity: sha512-cPJU47OaAoCbg0pBvzsgpTPhmhqI5eJjh/JIu8tPj5q+T7iLvW/JAYUqmE7KOB4R1ZyEhzBaIQpQpardBF5z8A==}
 
-  framer-motion@11.18.2:
-    resolution: {integrity: sha512-5F5Och7wrvtLVElIpclDT0CBzMVg3dL22B64aZwHtsIY8RB4mXICLrkajK4G9R+ieSAGcgrLeae2SeUTg2pr6w==}
+  framer-motion@12.38.0:
+    resolution: {integrity: sha512-rFYkY/pigbcswl1XQSb7q424kSTQ8q6eAC+YUsSKooHQYuLdzdHjrt6uxUC+PRAO++q5IS7+TamgIw1AphxR+g==}
     peerDependencies:
       '@emotion/is-prop-valid': '*'
       react: ^18.0.0 || ^19.0.0
@@ -1152,8 +1164,8 @@ packages:
   mdn-data@2.27.1:
     resolution: {integrity: sha512-9Yubnt3e8A0OKwxYSXyhLymGW4sCufcLG6VdiDdUGVkPhpqLxlvP5vl1983gQjJl3tqbrM731mjaZaP68AgosQ==}
 
-  meshoptimizer@1.0.1:
-    resolution: {integrity: sha512-Vix+QlA1YYT3FwmBBZ+49cE5y/b+pRrcXKqGpS5ouh33d3lSp2PoTpCw19E0cKDFWalembrHnIaZetf27a+W2g==}
+  meshoptimizer@1.1.1:
+    resolution: {integrity: sha512-oRFNWJRDA/WTrVj7NWvqa5HqE1t9MYDj2VaWirQCzCCrAd2GHrqR/sQezCxiWATPNlKTcRaPRHPJwIRoPBAp5g==}
 
   minimatch@10.2.5:
     resolution: {integrity: sha512-MULkVLfKGYDFYejP07QOurDLLQpcjk7Fw+7jXS2R2czRQzR56yHRveU5NDJEOviH+hETZKSkIk5c+T23GjFUMg==}
@@ -1167,11 +1179,11 @@ packages:
     resolution: {integrity: sha512-KZxYo1BUkWD2TVFLr0MQoM8vUUigWD3LlD83a/75BqC+4qE0Hb1Vo5v1FgcfaNXvfXzr+5EhQ6ing/CaBijTlw==}
     engines: {node: '>= 18'}
 
-  motion-dom@11.18.1:
-    resolution: {integrity: sha512-g76KvA001z+atjfxczdRtw/RXOM3OMSdd1f4DL77qCTF/+avrRJiawSG4yDibEQ215sr9kpinSlX2pCTJ9zbhw==}
+  motion-dom@12.38.0:
+    resolution: {integrity: sha512-pdkHLD8QYRp8VfiNLb8xIBJis1byQ9gPT3Jnh2jqfFtAsWUA3dEepDlsWe/xMpO8McV+VdpKVcp+E+TGJEtOoA==}
 
-  motion-utils@11.18.1:
-    resolution: {integrity: sha512-49Kt+HKjtbJKLtgO/LKj9Ld+6vw9BjH5d9sc40R/kVyH8GLAXgT42M2NnuPcJNuA3s9ZfZBUcwIgpmZWGEE+hA==}
+  motion-utils@12.36.0:
+    resolution: {integrity: sha512-eHWisygbiwVvf6PZ1vhaHCLamvkSbPIeAYxWUuL3a2PD/TROgE7FvfHWTIH4vMl798QLfMw15nRqIaRDXTlYRg==}
 
   mrmime@2.0.1:
     resolution: {integrity: sha512-Y3wQdFg2Va6etvQ5I82yUhGdsKrcYox6p7FfL1LbK2J4V01F9TGlepTIhnK24t7koZibmg82KGglhA1XK5IsLQ==}
@@ -1390,11 +1402,8 @@ packages:
     resolution: {integrity: sha512-tOG/7GyXpFevhXVh8jOPJrmtRpOTsYqUIkVdVooZYJS/z8WhfQUX8RJILmeuJNinGAMSu1veBr4asSHFt5/hng==}
     engines: {node: '>=18'}
 
-  three@0.182.0:
-    resolution: {integrity: sha512-GbHabT+Irv+ihI1/f5kIIsZ+Ef9Sl5A1Y7imvS5RQjWgtTPfPnZ43JmlYI7NtCRDK9zir20lQpfg8/9Yd02OvQ==}
-
-  three@0.183.2:
-    resolution: {integrity: sha512-di3BsL2FEQ1PA7Hcvn4fyJOlxRRgFYBpMTcyOgkwJIaDOdJMebEFPA+t98EvjuljDx4hNulAGwF6KIjtwI5jgQ==}
+  three@0.184.0:
+    resolution: {integrity: sha512-wtTRjG92pM5eUg/KuUnHsqSAlPM296brTOcLgMRqEeylYTh/CdtvKUvCyyCQTzFuStieWxvZb8mVTMvdPyUpxg==}
 
   through2@4.0.2:
     resolution: {integrity: sha512-iOqSav00cVxEEICeD7TjLB1sueEL+81Wpzp2bY17uZjZN0pWZPuo4suZ/61VujxmqSGFfgOcNuTZ85QJwNZQpw==}
@@ -1851,6 +1860,10 @@ snapshots:
     dependencies:
       '@capacitor/core': 8.3.1
 
+  '@capacitor/preferences@8.0.1(@capacitor/core@8.3.1)':
+    dependencies:
+      '@capacitor/core': 8.3.1
+
   '@capacitor/screen-orientation@8.0.1(@capacitor/core@8.3.1)':
     dependencies:
       '@capacitor/core': 8.3.1
@@ -1997,33 +2010,26 @@ snapshots:
     dependencies:
       minipass: 7.1.3
 
-  '@jolly-pixel/engine@2.5.0(three@0.182.0)':
+  '@jolly-pixel/engine@2.5.0(three@0.184.0)':
     dependencies:
       '@posva/event-emitter': 1.0.3
       picomatch: 4.0.4
       reflect-metadata: 0.2.2
-      three: 0.182.0
+      three: 0.184.0
 
-  '@jolly-pixel/engine@2.5.0(three@0.183.2)':
+  '@jolly-pixel/runtime@3.3.0(three@0.184.0)':
     dependencies:
-      '@posva/event-emitter': 1.0.3
-      picomatch: 4.0.4
-      reflect-metadata: 0.2.2
-      three: 0.183.2
-
-  '@jolly-pixel/runtime@3.3.0(three@0.183.2)':
-    dependencies:
-      '@jolly-pixel/engine': 2.5.0(three@0.183.2)
+      '@jolly-pixel/engine': 2.5.0(three@0.184.0)
       detect-gpu: 5.0.70
       lit: 3.3.2
       stats.js: 0.17.0
-      three: 0.183.2
+      three: 0.184.0
 
   '@jolly-pixel/voxel.renderer@1.4.0':
     dependencies:
       '@dimforge/rapier3d': 0.19.3
-      '@jolly-pixel/engine': 2.5.0(three@0.182.0)
-      three: 0.182.0
+      '@jolly-pixel/engine': 2.5.0(three@0.184.0)
+      three: 0.184.0
 
   '@jridgewell/gen-mapping@0.3.13':
     dependencies:
@@ -2204,15 +2210,14 @@ snapshots:
 
   '@types/stats.js@0.17.4': {}
 
-  '@types/three@0.183.0':
+  '@types/three@0.184.0':
     dependencies:
       '@dimforge/rapier3d-compat': 0.12.0
       '@tweenjs/tween.js': 23.1.3
       '@types/stats.js': 0.17.4
       '@types/webxr': 0.5.24
-      '@webgpu/types': 0.1.69
       fflate: 0.8.2
-      meshoptimizer: 1.0.1
+      meshoptimizer: 1.1.1
 
   '@types/trusted-types@2.0.7': {}
 
@@ -2302,8 +2307,6 @@ snapshots:
       '@vitest/pretty-format': 4.1.5
       convert-source-map: 2.0.0
       tinyrainbow: 3.1.0
-
-  '@webgpu/types@0.1.69': {}
 
   '@xmldom/xmldom@0.8.13': {}
 
@@ -2453,10 +2456,10 @@ snapshots:
 
   fflate@0.8.2: {}
 
-  framer-motion@11.18.2(react-dom@19.2.5(react@19.2.5))(react@19.2.5):
+  framer-motion@12.38.0(react-dom@19.2.5(react@19.2.5))(react@19.2.5):
     dependencies:
-      motion-dom: 11.18.1
-      motion-utils: 11.18.1
+      motion-dom: 12.38.0
+      motion-utils: 12.36.0
       tslib: 2.8.1
     optionalDependencies:
       react: 19.2.5
@@ -2652,7 +2655,7 @@ snapshots:
 
   mdn-data@2.27.1: {}
 
-  meshoptimizer@1.0.1: {}
+  meshoptimizer@1.1.1: {}
 
   minimatch@10.2.5:
     dependencies:
@@ -2664,11 +2667,11 @@ snapshots:
     dependencies:
       minipass: 7.1.3
 
-  motion-dom@11.18.1:
+  motion-dom@12.38.0:
     dependencies:
-      motion-utils: 11.18.1
+      motion-utils: 12.36.0
 
-  motion-utils@11.18.1: {}
+  motion-utils@12.36.0: {}
 
   mrmime@2.0.1: {}
 
@@ -2887,9 +2890,7 @@ snapshots:
       minizlib: 3.1.0
       yallist: 5.0.0
 
-  three@0.182.0: {}
-
-  three@0.183.2: {}
+  three@0.184.0: {}
 
   through2@4.0.2:
     dependencies:
