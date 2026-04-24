@@ -289,33 +289,27 @@ export async function bootstrap(options: BootstrapOptions): Promise<Teardown> {
             try {
               bridge.commitPlayer({ kind: plan.kind, origin: plan.origin });
             } catch (e: any) {
-              console.error('Autoplay AI threw on placement:', e.message);
-              // Illegal placement fallback
               bridge.endYourTurn();
             }
           } else {
-            console.warn('Autoplay AI could not plan a move');
             bridge.endYourTurn();
           }
 
           if (bridge.state.youRemaining === 0 && bridge.state.turn === 'you') {
             bridge.endYourTurn();
           }
+        }
 
-          // If turn transitioned to rival, let rival move after a delay
-          const isNowRival = bridge.state.turn === 'rival' as string;
-          if (isNowRival) {
-            setTimeout(() => {
-              try {
-                bridge.runRivalTurn();
-              } catch {
-                // Ignore if unmounted
-              }
-              if (active) setTimeout(runAutoplayTurn, 100);
-            }, 600);
-          } else {
-            if (active) setTimeout(runAutoplayTurn, 600);
-          }
+        const isNowRival = bridge.state.turn === 'rival' as string;
+        if (isNowRival) {
+          setTimeout(() => {
+            try {
+              bridge.runRivalTurn();
+            } catch {}
+            if (active) setTimeout(runAutoplayTurn, 100);
+          }, 600);
+        } else {
+          if (active) setTimeout(runAutoplayTurn, 600);
         }
       };
 
