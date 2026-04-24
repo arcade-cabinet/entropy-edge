@@ -202,12 +202,22 @@ interface PlayingProps {
   onExit: () => void;
 }
 
+import type { ShapeKind } from '@/sim';
+
 function Playing({ explicitSeed, onRestart, onExit }: PlayingProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [duelState, setDuelState] = useState<DuelState | null>(null);
   const [objective, setObjective] = useState<SectorObjective | null>(null);
   const [codename, setCodename] = useState<Codename | null>(null);
   const [progress, setProgress] = useState<ProgressSnapshot | null>(null);
+  const [activeShape, setActiveShape] = useState<ShapeKind>('cube');
+  const setShapeRef = useRef<((kind: ShapeKind) => void) | null>(null);
+
+  useEffect(() => {
+    if (setShapeRef.current) {
+      setShapeRef.current(activeShape);
+    }
+  }, [activeShape]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -221,7 +231,7 @@ function Playing({ explicitSeed, onRestart, onExit }: PlayingProps) {
       // Lazy-load the renderer entry so the landing bundle stays lean.
       const mod = await import('@/render/bridge/bootstrap');
       if (disposed) return;
-      disposer = await mod.bootstrap({
+      const res = await mod.bootstrap({
         canvas,
         seed,
         autoplay,
@@ -234,13 +244,17 @@ function Playing({ explicitSeed, onRestart, onExit }: PlayingProps) {
           window.history.replaceState(null, '', url);
         },
       });
+      disposer = res.teardown;
+      setShapeRef.current = res.setActiveShape;
+      // We read activeShape here once on mount; future updates are handled by the other useEffect
+      res.setActiveShape(activeShape);
       if (disposed) disposer?.();
     })();
     return () => {
       disposed = true;
       disposer?.();
     };
-  }, [explicitSeed]);
+  }, [explicitSeed, activeShape]);
 
   return (
     <main
@@ -257,7 +271,14 @@ function Playing({ explicitSeed, onRestart, onExit }: PlayingProps) {
         style={{ width: '100%', height: '100%', display: 'block' }}
       />
       {duelState && objective ? (
-        <Hud state={duelState} objective={objective} codename={codename} progress={progress} />
+        <Hud 
+          state={duelState} 
+          objective={objective} 
+          codename={codename} 
+          progress={progress} 
+          activeShape={activeShape}
+          setActiveShape={setActiveShape}
+        />
       ) : null}
       <MuteToggle />
       {duelState && objective ? (
@@ -278,11 +299,15 @@ function Hud({
   objective,
   codename,
   progress,
+  activeShape,
+  setActiveShape,
 }: {
   state: DuelState;
   objective: SectorObjective;
   codename: Codename | null;
   progress: ProgressSnapshot | null;
+  activeShape: ShapeKind;
+  setActiveShape: (kind: ShapeKind) => void;
 }) {
   const banner = bannerForState(state, objective, progress);
   return (
@@ -354,9 +379,41 @@ function Hud({
           tierTarget={objective.tierTarget}
           color="#ff6b1a"
         />
-        <div style={{ textAlign: 'center', color: 'var(--color-fg-muted, #7a8190)' }}>
-          {labelForStatus(state)}
+        
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
+          <div style={{ textAlign: 'center', color: 'var(--color-fg-muted, #7a8190)' }}>
+            {labelForStatus(state)}
+          </div>
+          
+          {/* Shape Palette */}
+          {state.turn === 'you' && state.status.kind === 'ongoing' ? (
+            <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 4, maxWidth: '100%', WebkitOverflowScrolling: 'touch', pointerEvents: 'auto' }}>
+              {objective.shapePalette.map(shape => (
+                <button
+                  key={shape}
+                  type="button"
+                  onPointerUp={(e) => { e.stopPropagation(); setActiveShape(shape); }}
+                  style={{
+                    background: activeShape === shape ? 'rgba(255, 107, 26, 0.15)' : 'rgba(26, 29, 36, 0.7)',
+                    border: `1px solid ${activeShape === shape ? 'var(--color-signal, #ff6b1a)' : 'rgba(122, 129, 144, 0.45)'}`,
+                    color: activeShape === shape ? 'var(--color-signal, #ff6b1a)' : 'var(--color-fg-muted, #7a8190)',
+                    padding: '8px 12px',
+                    borderRadius: 4,
+                    cursor: 'pointer',
+                    fontFamily: 'var(--font-mono)',
+                    fontSize: 11,
+                    letterSpacing: '0.05em',
+                    textTransform: 'uppercase',
+                    whiteSpace: 'nowrap'
+                  }}
+                >
+                  {shape}
+                </button>
+              ))}
+            </div>
+          ) : null}
         </div>
+
         <BudgetBadge
           label="Rival"
           remaining={state.rivalRemaining}
