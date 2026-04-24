@@ -1,0 +1,9 @@
+- main [ref=e4]:
+  - generic [ref=e5]:
+    - heading "Entropy Edge" [level=1] [ref=e6]
+    - paragraph [ref=e7]: Two builders, one lattice. Race the same tier-connectivity objective, brace what you build, and keep what was load-bearing when you claimed it.
+    - generic [ref=e8]:
+      - generic [ref=e9]: Build upward
+      - generic [ref=e10]: Brace every span
+      - generic [ref=e11]: Claim the tier
+    - button "Enter the Lattice" [ref=e12] [cursor=pointer]

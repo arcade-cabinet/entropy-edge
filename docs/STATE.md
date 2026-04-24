@@ -1,7 +1,7 @@
 ---
 title: State
-updated: 2026-04-23
-status: in-progress
+updated: 2026-04-24
+status: completed
 domain: context
 ---
 
@@ -43,21 +43,23 @@ branch, sequential commits, one PR.
 
 ## Remaining before 1.0
 
-See `PRODUCTION.md` for the live checklist. At a glance:
+The full A→H PR chain is shipped and the game is now production-ready.
 
 | Area                | Status       | PR   |
 | ------------------- | ------------ | ---- |
-| Docs + skeleton     | in progress  | A    |
-| Sim + shape grammar | pending      | B    |
-| Renderer wiring     | pending      | C    |
-| ECS + actors        | pending      | D    |
-| Seed + codename     | pending      | E    |
-| Audio               | pending      | F    |
-| Content pipeline    | pending      | G    |
-| Polish + landing    | pending      | H    |
+| Docs + skeleton     | shipped      | A    |
+| Sim + shape grammar | shipped      | B    |
+| Renderer wiring     | shipped      | C    |
+| ECS + actors        | shipped      | D    |
+| Seed + codename     | shipped      | E    |
+| Audio               | shipped      | F    |
+| Content pipeline    | shipped      | G    |
+| Polish + landing    | shipped      | H    |
 
 ## Decisions log
 
+- 2026-04-24: Finished the production polish runbook. Checked off all tasks in `HANDOFF-PRD.md`.
+- 2026-04-24: Migrated integration browser test to Playwright via `vitest.browser.config.ts` using `vitest/browser` and `bootstrap` to take automated screenshots.
 - 2026-04-23: Adopted `@jolly-pixel/voxel.renderer` after
   discovering it provides chunked voxel world + Rapier physics
   hooks + tileset face overrides + JSON save/load + Tiled importer
