@@ -5,6 +5,7 @@ export { CODENAME_ADJECTIVES, CODENAME_NOUNS, parseCodename, rollCodename } from
 export {
   readSeedFromLocation,
   resolveSeed,
+  resolveDailySeed,
   shareUrlForSeed,
   type ResolvedSeed,
 } from './seed';

@@ -3,7 +3,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { isMuted, onMuteChange, setMuted } from '@/audio';
 import type { ProgressSnapshot } from '@/ecs';
 import type { Codename, DuelState, SectorObjective } from '@/sim';
-import { readSeedFromLocation, shareUrlForSeed, resolveSeed } from '@/sim';
+import { readSeedFromLocation, shareUrlForSeed, resolveSeed, resolveDailySeed } from '@/sim';
 import { Landing } from '@/ui/landing/Landing';
 
 /**
@@ -39,7 +39,13 @@ export function Game() {
           exit={{ opacity: 0 }}
           transition={{ duration: 0.35 }}
         >
-          <Landing onEnter={() => setPhase('setup')} />
+          <Landing 
+            onEnter={() => setPhase('setup')}
+            onDaily={() => {
+              setActiveSeed(resolveDailySeed().codename.slug);
+              setPhase('playing');
+            }} 
+          />
         </motion.div>
       ) : phase === 'setup' ? (
         <motion.div
@@ -207,6 +213,8 @@ function Playing({ explicitSeed, onRestart, onExit }: PlayingProps) {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const seed = explicitSeed ?? readSeedFromLocation(window.location.search);
+    const autoplay = new URLSearchParams(window.location.search).get('autoplay') === '1';
+    
     let disposed = false;
     let disposer: (() => void) | null = null;
     (async () => {
@@ -216,6 +224,7 @@ function Playing({ explicitSeed, onRestart, onExit }: PlayingProps) {
       disposer = await mod.bootstrap({
         canvas,
         seed,
+        autoplay,
         onDuelChange: setDuelState,
         onObjective: setObjective,
         onProgress: setProgress,
@@ -478,6 +487,17 @@ function GameOverOverlay({
       ? 'var(--color-rival, #7d5cff)'
       : 'var(--color-fg-muted, #7a8190)';
   const roundsUsed = status.kind === 'claimed' ? status.round : objective.maxRounds;
+  
+  // Basic Scoring: 
+  // Base tier value + Block efficiency bonus
+  const myTier = progress?.yourMaxTier ?? 0;
+  const myBlocks = progress?.yourCellCount ?? 1;
+  const myScore = Math.floor((myTier * 1500) + (myTier > 0 ? (objective.tierTarget * 100 / Math.max(1, myBlocks)) : 0));
+  
+  const rivalTier = progress?.rivalMaxTier ?? 0;
+  const rivalBlocks = progress?.rivalCellCount ?? 1;
+  const rivalScore = Math.floor((rivalTier * 1500) + (rivalTier > 0 ? (objective.tierTarget * 100 / Math.max(1, rivalBlocks)) : 0));
+
   return (
     <motion.div
       initial={{ opacity: 0 }}
@@ -542,13 +562,13 @@ function GameOverOverlay({
             color: 'var(--color-fg, #dce1e8)',
           }}
         >
-          <dt style={{ color: 'var(--color-signal, #ff6b1a)', textAlign: 'right' }}>You</dt>
+          <dt style={{ color: 'var(--color-signal, #ff6b1a)', textAlign: 'right', fontWeight: 600 }}>You: {myScore.toLocaleString()} pts</dt>
           <dd style={{ margin: 0, textAlign: 'left' }}>
-            tier {progress?.yourMaxTier ?? 0}/{objective.tierTarget} · {progress?.yourCellCount ?? 0} blocks
+            tier {myTier}/{objective.tierTarget} · {myBlocks} blocks
           </dd>
-          <dt style={{ color: 'var(--color-rival, #7d5cff)', textAlign: 'right' }}>Rival</dt>
+          <dt style={{ color: 'var(--color-rival, #7d5cff)', textAlign: 'right', fontWeight: 600 }}>Rival: {rivalScore.toLocaleString()} pts</dt>
           <dd style={{ margin: 0, textAlign: 'left' }}>
-            tier {progress?.rivalMaxTier ?? 0}/{objective.tierTarget} · {progress?.rivalCellCount ?? 0} blocks
+            tier {rivalTier}/{objective.tierTarget} · {rivalBlocks} blocks
           </dd>
         </dl>
         <div style={{ display: 'flex', gap: 12, marginTop: 8, flexWrap: 'wrap', justifyContent: 'center' }}>

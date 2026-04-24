@@ -52,6 +52,7 @@ export class SimBridge {
   private readonly mirroredCells = new Map<string, { owner: PlayerId; monument: boolean }>();
   private readonly listeners = new Set<(state: DuelState) => void>();
   private readonly commitListeners = new Set<(event: CommitEvent) => void>();
+  private readonly collapseListeners = new Set<(positions: Vec3[]) => void>();
   private readonly progressListeners = new Set<(progress: ProgressSnapshot) => void>();
   private _state: DuelState;
 
@@ -81,6 +82,11 @@ export class SimBridge {
   onCommit(listener: (event: CommitEvent) => void): () => void {
     this.commitListeners.add(listener);
     return () => this.commitListeners.delete(listener);
+  }
+
+  onCollapse(listener: (positions: Vec3[]) => void): () => void {
+    this.collapseListeners.add(listener);
+    return () => this.collapseListeners.delete(listener);
   }
 
   onProgress(listener: (progress: ProgressSnapshot) => void): () => void {
@@ -163,6 +169,7 @@ export class SimBridge {
     }
 
     // Remove cells that no longer exist in the sim.
+    const collapsed: Vec3[] = [];
     for (const [id] of this.mirroredCells) {
       if (seen.has(id)) continue;
       const parts = id.split(',').map(Number);
@@ -170,6 +177,11 @@ export class SimBridge {
       const pos: Vec3 = { x: parts[0] as number, y: parts[1] as number, z: parts[2] as number };
       this.removeOnAllLayers(pos);
       this.mirroredCells.delete(id);
+      collapsed.push(pos);
+    }
+    
+    if (collapsed.length > 0) {
+      for (const l of this.collapseListeners) l(collapsed);
     }
   }
 

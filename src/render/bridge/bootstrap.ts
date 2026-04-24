@@ -9,6 +9,7 @@ import {
   type Codename,
   type DuelState,
   type SectorObjective,
+  plan as planRival,
 } from '@/sim';
 import { attachPointerInput, SimBridge, type ProgressSnapshot } from '@/ecs';
 import { createAmbient, createSfx, ensureStarted } from '@/audio';
@@ -29,6 +30,7 @@ import { BLOCK_DEFINITIONS } from './blocks';
 export interface BootstrapOptions {
   canvas: HTMLCanvasElement;
   seed?: string | null;
+  autoplay?: boolean;
   onDuelChange?: (state: DuelState) => void;
   onObjective?: (objective: SectorObjective) => void;
   onCodename?: (codename: Codename) => void;
@@ -189,11 +191,138 @@ export async function bootstrap(options: BootstrapOptions): Promise<Teardown> {
   const offCommit = bridge.onCommit((event) => {
     void sfx.play(event.kind, event.owner);
   });
+  
+  const offCollapse = bridge.onCollapse((positions) => {
+    void sfx.collapse();
+    
+    // Screenshake via GSAP on the camera
+    const camRef = cameraRef;
+    if (camRef) {
+      import('gsap').then(({ gsap }) => {
+        const intensity = Math.min(0.5, positions.length * 0.05);
+        gsap.to(camRef.camera.position, {
+          x: camRef.camera.position.x + (Math.random() - 0.5) * intensity,
+          y: camRef.camera.position.y + (Math.random() - 0.5) * intensity,
+          z: camRef.camera.position.z + (Math.random() - 0.5) * intensity,
+          duration: 0.05,
+          yoyo: true,
+          repeat: 5,
+          ease: 'power1.inOut'
+        });
+      });
+    }
+
+    // Spawn Rapier debris
+    for (const pos of positions) {
+      const rbDesc = RAPIER.RigidBodyDesc.dynamic().setTranslation(pos.x, pos.y, pos.z);
+      const rigidBody = rapierWorld.createRigidBody(rbDesc);
+      const colDesc = RAPIER.ColliderDesc.cuboid(0.48, 0.48, 0.48);
+      colDesc.setRestitution(0.2);
+      colDesc.setFriction(0.5);
+      colDesc.setMass(1);
+      rapierWorld.createCollider(colDesc, rigidBody);
+      
+      // Visual debris mesh
+      const mesh = new THREE.Mesh(
+        new THREE.BoxGeometry(0.96, 0.96, 0.96),
+        new THREE.MeshLambertMaterial({ color: '#ff375f' }) // Stress color
+      );
+      mesh.position.set(pos.x, pos.y, pos.z);
+      scene.add(mesh);
+      
+      // Cleanup debris after 4 seconds
+      setTimeout(() => {
+        if (mesh.parent) {
+          scene.remove(mesh);
+          mesh.geometry.dispose();
+          (mesh.material as THREE.Material).dispose();
+          try {
+            rapierWorld.removeRigidBody(rigidBody);
+          } catch {}
+        }
+      }, 4000);
+      
+      // We don't have a full ECS actor for debris to sync position every frame,
+      // so we just add a manual sync to the beforeFixedUpdate loop.
+      const syncDebris = () => {
+        if (!mesh.parent) {
+          world.off('beforeFixedUpdate', syncDebris);
+          return;
+        }
+        const trans = rigidBody.translation();
+        const rot = rigidBody.rotation();
+        mesh.position.set(trans.x, trans.y, trans.z);
+        mesh.quaternion.set(rot.x, rot.y, rot.z, rot.w);
+      };
+      world.on('beforeFixedUpdate', syncDebris);
+    }
+  });
 
   // Pointer input — tap/drag-to-place cubes.
   let detachPointer: (() => void) | null = null;
+  let autoplayInterval: ReturnType<typeof setInterval> | null = null;
+
   const tryAttachPointer = () => {
     if (detachPointer || !cameraRef) return;
+    
+    if (options.autoplay) {
+      // AI vs AI Autoplay Mode
+      armAudio();
+      let autoplayGuard = 0;
+      let active = true;
+
+      const runAutoplayTurn = async () => {
+        if (!active || !cameraRef) return;
+        if (bridge.state.status.kind !== 'ongoing') return;
+        
+        if (bridge.state.turn === 'you') {
+          autoplayGuard++;
+          const plan = planRival({
+            grid: bridge.grid,
+            objective: objective,
+            me: 'you',
+            anchor: yourAnchor,
+            rng: seedRng.fork(`auto-you-${bridge.state.round}-${bridge.state.youRemaining}-${autoplayGuard}`),
+          });
+          
+          if (plan) {
+            try {
+              bridge.commitPlayer({ kind: plan.kind, origin: plan.origin });
+            } catch (e: any) {
+              bridge.endYourTurn();
+            }
+          } else {
+            bridge.endYourTurn();
+          }
+
+          if (bridge.state.youRemaining === 0 && bridge.state.turn === 'you') {
+            bridge.endYourTurn();
+          }
+        }
+
+        const isNowRival = bridge.state.turn === 'rival' as string;
+        if (isNowRival) {
+          setTimeout(() => {
+            try {
+              bridge.runRivalTurn();
+            } catch {}
+            if (active) setTimeout(runAutoplayTurn, 100);
+          }, 600);
+        } else {
+          if (active) setTimeout(runAutoplayTurn, 600);
+        }
+      };
+
+      setTimeout(runAutoplayTurn, 1000);
+      
+      // Satisfy the pointer return for cleanup
+      detachPointer = () => {
+        active = false;
+      };
+      return;
+    }
+
+    // Normal Human Player Mode
     detachPointer = attachPointerInput({
       canvas,
       cameraHost: cameraRef,
@@ -209,7 +338,13 @@ export async function bootstrap(options: BootstrapOptions): Promise<Teardown> {
         }
         if (bridge.state.youRemaining === 0) {
           bridge.endYourTurn();
-          bridge.runRivalTurn();
+          setTimeout(() => {
+            try {
+              bridge.runRivalTurn();
+            } catch {
+              // Ignore if unmounted or state changed
+            }
+          }, 1200);
         }
       },
     });
@@ -235,6 +370,7 @@ export async function bootstrap(options: BootstrapOptions): Promise<Teardown> {
     offChange();
     offProgress?.();
     offCommit();
+    offCollapse();
     detachPointer?.();
     ambient.stop();
     sfx.stop();
