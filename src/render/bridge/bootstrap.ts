@@ -3,27 +3,34 @@ import RAPIER from '@dimforge/rapier3d-compat';
 import { Camera3DControls } from '@jolly-pixel/engine';
 import { Runtime, loadRuntime } from '@jolly-pixel/runtime';
 import { VoxelRenderer } from '@jolly-pixel/voxel.renderer';
-import { BLOCK_DEFINITIONS, BLOCK_IDS } from './blocks';
+import { generateObjective, Rng, type DuelState, type SectorObjective } from '@/sim';
+import { attachPointerInput, SimBridge } from '@/ecs';
+import { BLOCK_DEFINITIONS } from './blocks';
 
 /**
  * JollyPixel runtime bootstrap.
  *
- * Initializes Rapier3D (WASM), creates the Runtime bound to the supplied
- * canvas, loads the tileset, spawns the voxel map actor with one layer per
- * owner (+ hologram + monument), seeds a demo sector opener so the canvas
- * paints something, and kicks off the render loop.
+ * Boots Rapier3D, the JollyPixel runtime, the voxel renderer, and the sim
+ * bridge. Exposes a listener hook so the React HUD can mirror DuelState.
  *
- * The duel loop + input wire through in PR D.
+ * Per the three-layer contract: the bridge mutates the grid (sim), then
+ * pushes setVoxel calls into the renderer. React never touches the grid
+ * directly — it reads DuelState via onDuelChange and dispatches pointer
+ * events via this module's public API.
  */
 
 export interface BootstrapOptions {
   canvas: HTMLCanvasElement;
+  seed?: string;
+  onDuelChange?: (state: DuelState) => void;
+  onObjective?: (objective: SectorObjective) => void;
 }
 
 export type Teardown = () => void;
 
 export async function bootstrap(options: BootstrapOptions): Promise<Teardown> {
   const { canvas } = options;
+  const seed = options.seed ?? `run-${Math.floor(Date.now() / 1000)}`;
 
   await RAPIER.init();
   const rapierWorld = new RAPIER.World({ x: 0, y: -9.81, z: 0 });
@@ -40,10 +47,11 @@ export async function bootstrap(options: BootstrapOptions): Promise<Teardown> {
   dir.position.set(16, 28, 18);
   scene.add(ambient, dir);
 
-  // Camera actor — Camera3DControls is the engine's blessed camera wrapper.
+  let cameraRef: Camera3DControls | null = null;
   world.createActor('camera').addComponent(Camera3DControls, {}, (component) => {
     component.camera.position.set(18, 16, 22);
     component.camera.lookAt(0, 3, 0);
+    cameraRef = component;
   });
 
   const voxelMap = world
@@ -66,46 +74,68 @@ export async function bootstrap(options: BootstrapOptions): Promise<Teardown> {
     tileSize: 32,
   });
 
-  seedOpener(voxelMap);
+  // Sector 1 objective — deterministic from the seed.
+  const seedRng = new Rng(seed);
+  const objective = generateObjective(1, seedRng.fork('sector-1'));
+  options.onObjective?.(objective);
+
+  const yourAnchor = { x: -6, y: 0, z: 0 } as const;
+  const rivalAnchor = { x: 6, y: 0, z: 0 } as const;
+
+  const bridge = new SimBridge({
+    voxelMap,
+    objective,
+    yourAnchor,
+    rivalAnchor,
+    seed,
+  });
+
+  // Seed the two anchors visually so the player has something to build from.
+  bridge.seedCell('you', yourAnchor);
+  bridge.seedCell('rival', rivalAnchor);
+  options.onDuelChange?.(bridge.state);
+
+  const offChange = bridge.onChange((state) => options.onDuelChange?.(state));
+
+  // Pointer input — tap/drag-to-place cubes.
+  let detachPointer: (() => void) | null = null;
+  const tryAttachPointer = () => {
+    if (detachPointer || !cameraRef) return;
+    detachPointer = attachPointerInput({
+      canvas,
+      cameraHost: cameraRef,
+      grid: bridge.grid,
+      onTap: (pos) => {
+        if (bridge.state.turn !== 'you') return;
+        if (bridge.state.status.kind !== 'ongoing') return;
+        try {
+          bridge.commitPlayer({ kind: 'cube', origin: pos });
+        } catch {
+          // Illegal placement — ignore silently; hologram feedback lands in PR H.
+        }
+        if (bridge.state.youRemaining === 0) {
+          bridge.endYourTurn();
+          bridge.runRivalTurn();
+        }
+      },
+    });
+  };
+  // Camera3DControls is added synchronously above but its `camera` field is
+  // assigned in the callback which fires after this frame; schedule the pointer
+  // attachment on the next microtask.
+  queueMicrotask(tryAttachPointer);
 
   world.on('beforeFixedUpdate', () => {
     rapierWorld.step();
   });
 
   loadRuntime(runtime).catch((error: unknown) => {
-    // Runtime.ts already logs; rethrow would crash the mount.
     console.error('[entropy-edge] runtime load failed', error);
   });
 
   return () => {
+    offChange();
+    detachPointer?.();
     runtime.stop?.();
   };
-}
-
-function seedOpener(voxelMap: VoxelRenderer): void {
-  // Player anchor slab: 4-wide strip at (-8..-5, 0, -2..1).
-  for (let dx = 0; dx < 4; dx++) {
-    for (let dz = -2; dz < 2; dz++) {
-      voxelMap.setVoxel('player', {
-        position: { x: -8 + dx, y: 0, z: dz },
-        blockId: BLOCK_IDS.PLAYER,
-      });
-    }
-  }
-  // Rival anchor slab: 4-wide strip at (4..7, 0, -2..1).
-  for (let dx = 0; dx < 4; dx++) {
-    for (let dz = -2; dz < 2; dz++) {
-      voxelMap.setVoxel('rival', {
-        position: { x: 4 + dx, y: 0, z: dz },
-        blockId: BLOCK_IDS.RIVAL,
-      });
-    }
-  }
-  // Center monument: 3-tall tower (mint) so run-end visual is clear.
-  for (let y = 0; y < 3; y++) {
-    voxelMap.setVoxel('monument', {
-      position: { x: 0, y, z: 0 },
-      blockId: BLOCK_IDS.PLAYER_MONUMENT,
-    });
-  }
 }
