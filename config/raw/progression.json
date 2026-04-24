@@ -1,0 +1,8 @@
+{
+  "sectorOffset": 1,
+  "bandBreakpoints": {
+    "band1Max": 3,
+    "band2Max": 7,
+    "band3Max": 12
+  }
+}

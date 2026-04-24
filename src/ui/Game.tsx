@@ -1,307 +1,679 @@
-import {
-  FloatingJoystick,
-  GameOverScreen,
-  GameViewport,
-  OverlayButton,
-  StartScreen,
-} from "@/ui/shell";
-import { PhaseTrait, ScoreTrait, TimerTrait } from "@/store/shared-traits";
-import { useContainerSize } from "@/hooks/useContainerSize";
-import { useGameLoop } from "@/hooks/useGameLoop";
-import { useRunSnapshotAutosave } from "@/hooks/useRunSnapshotAutosave";
-import { recordRunResult } from "@/hooks/runtimeResult";
-import {
-  createInitialState,
-  didLose,
-  didWin,
-  getEntropyCompletionCue,
-  getEntropyRunSummary,
-  isRunComplete,
-  nextLevel,
-  restartGame,
-  startGame,
-  tick,
-} from "@/engine/simulation";
-import type { EntropyState, Vec2 } from "@/engine/types";
-import { EntropyTrait } from "@/store/traits";
-import { entropyEntity, entropyWorld } from "@/store/world";
-import type { GameSaveSlot, SessionMode } from "@/lib/sessionMode";
-import { useTrait, WorldProvider } from "koota/react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { EdgeScene } from "./game/EdgeScene";
-import { HUD } from "./game/HUD";
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { AnimatePresence, motion } from 'framer-motion';
+import { isMuted, onMuteChange, setMuted } from '@/audio';
+import type { ProgressSnapshot } from '@/ecs';
+import type { Codename, DuelState, SectorObjective } from '@/sim';
+import { readSeedFromLocation, shareUrlForSeed, resolveSeed } from '@/sim';
+import { Landing } from '@/ui/landing/Landing';
 
-function useKeyboardMovementInput(): Vec2 {
-  const [input, setInput] = useState<Vec2>({ x: 0, y: 0 });
+/**
+ * Game — hosts the landing page, setup modal, then the voxel canvas + HUD overlay.
+ *
+ * JollyPixel + Rapier3D are lazy-loaded via dynamic import on CTA so the
+ * cold landing bundle stays small and the first paint is fast.
+ */
 
+type Phase = 'landing' | 'setup' | 'playing';
+
+export function Game() {
+  const [phase, setPhase] = useState<Phase>('landing');
+  const [runId, setRunId] = useState(0);
+  const [activeSeed, setActiveSeed] = useState<string | null>(null);
+
+  // If there's already a seed in the URL, skip setup and go straight to playing
   useEffect(() => {
-    const pressed = new Set<string>();
-    const update = () => {
-      setInput({
-        x:
-          (pressed.has("arrowright") || pressed.has("d") ? 1 : 0) -
-          (pressed.has("arrowleft") || pressed.has("a") ? 1 : 0),
-        y:
-          (pressed.has("arrowdown") || pressed.has("s") ? 1 : 0) -
-          (pressed.has("arrowup") || pressed.has("w") ? 1 : 0),
-      });
-    };
-    const handleDown = (event: KeyboardEvent) => {
-      pressed.add(event.key.toLowerCase());
-      update();
-    };
-    const handleUp = (event: KeyboardEvent) => {
-      pressed.delete(event.key.toLowerCase());
-      update();
-    };
-    window.addEventListener("keydown", handleDown);
-    window.addEventListener("keyup", handleUp);
-    return () => {
-      window.removeEventListener("keydown", handleDown);
-      window.removeEventListener("keyup", handleUp);
-    };
-  }, []);
-
-  return input;
-}
-
-function EntropyApp() {
-  const mountRef = useRef<HTMLDivElement>(null);
-  const initialState = useMemo(() => createInitialState(), []);
-
-  const phaseData = (useTrait(entropyEntity, PhaseTrait) as { phase: string } | undefined) ?? {
-    phase: "menu",
-  };
-  const phase = phaseData.phase;
-
-  const state = (useTrait(entropyEntity, EntropyTrait) as EntropyState | undefined) ?? initialState;
-
-  const scoreData = (useTrait(entropyEntity, ScoreTrait) as
-    | { value: number; label: string }
-    | undefined) ?? { value: 0, label: "SCORE" };
-
-  const keyboardMovement = useKeyboardMovementInput();
-  const [touchMovement, setTouchMovement] = useState<Vec2>({ x: 0, y: 0 });
-  const movement =
-    touchMovement.x !== 0 || touchMovement.y !== 0 ? touchMovement : keyboardMovement;
-  useContainerSize(mountRef);
-
-  const readState = useCallback(
-    () => (entropyEntity.get(EntropyTrait) as EntropyState | undefined) ?? initialState,
-    [initialState]
-  );
-
-  const writeState = useCallback((next: EntropyState) => {
-    entropyEntity.set(EntropyTrait, next);
-  }, []);
-
-  useGameLoop(
-    (deltaMs) => {
-      if (phase !== "playing") return;
-      const current = readState();
-      const next = tick(current, deltaMs, movement);
-      writeState(next);
-
-      entropyEntity.set(ScoreTrait, { value: next.score, label: "SCORE" });
-      entropyEntity.set(TimerTrait, {
-        elapsedMs: next.elapsedMs,
-        remainingMs: next.timeMs,
-        label: "STABILITY",
-      });
-
-      if (didLose(next)) {
-        entropyEntity.set(PhaseTrait, { phase: "gameover" });
-      } else if (didWin(next)) {
-        entropyEntity.set(PhaseTrait, { phase: "win" });
-      }
-    },
-    [phase, movement.x, movement.y]
-  );
-
-  const isPlaying = phase === "playing";
-  const summary = getEntropyRunSummary(state);
-  const runComplete = isRunComplete(state);
-  const completionCue = getEntropyCompletionCue(state);
-
-  useRunSnapshotAutosave<EntropyState>({
-    key: "entropy-edge:v1:save",
-    paused: phase !== "playing",
-    build: () => state,
-  });
-
-  return (
-    <GameViewport ref={mountRef} background="#060d1a" data-browser-screenshot-mode="page">
-      <EdgeScene state={state} isPlaying={isPlaying} />
-      <RunResultEffect
-        phase={phase}
-        mode={state.sessionMode}
-        score={summary.score}
-        sector={summary.sector}
-        rating={completionCue.rating}
-      />
-
-      {phase === "menu" ? (
-        <StartScreen
-          title="ENTROPY'S EDGE"
-          subtitle="Ride the edge of reserve depletion through hazard sectors. Each modifier rewrites the calculus. Finish with a reserve strategy that held."
-          primaryAction={{
-            label: "Initialize Link",
-            onClick: () => {
-              const next = resolveEntropyStartState("standard", undefined, readState());
-              writeState(next);
-              entropyEntity.set(PhaseTrait, { phase: "playing" });
-              entropyEntity.set(ScoreTrait, { value: next.score, label: "SCORE" });
-              entropyEntity.set(TimerTrait, {
-                elapsedMs: next.elapsedMs,
-                remainingMs: next.timeMs,
-                label: "STABILITY",
-              });
-            },
-          }}
-          glowColor="var(--color-signal)"
-          glowRgb="255, 107, 26"
-          background={[
-            "radial-gradient(ellipse 80% 60% at center 40%, rgba(33, 212, 255, 0.14), transparent 65%)",
-            "radial-gradient(ellipse 40% 40% at center 60%, rgba(255, 107, 26, 0.10), transparent 70%)",
-            "linear-gradient(180deg, rgba(7, 8, 10, 0.85) 0%, rgba(7, 8, 10, 0.96) 100%)",
-          ].join(", ")}
-          displayClassName="ee-display"
-          verbs={[
-            { icon: "◇", text: "Secure anchors" },
-            { icon: "⟆", text: "Build resonance" },
-            { icon: "⌇", text: "Hold the edge" },
-          ]}
-        />
-      ) : null}
-
-      {phase === "playing" ? <HUD state={state} /> : null}
-      {phase === "playing" ? (
-        <FloatingJoystick
-          accent="#67e8f9"
-          label="Entropy movement joystick"
-          onChange={(vector) => setTouchMovement({ x: vector.x, y: vector.y })}
-        />
-      ) : null}
-
-      {phase === "win" ? (
-        <GameOverScreen
-          accent="var(--color-signal)"
-          glowRgb="255, 107, 26"
-          displayClassName="ee-display"
-          background="radial-gradient(ellipse at center, rgba(33, 212, 255, 0.18), rgba(7, 8, 10, 0.96) 70%)"
-          title={completionCue.title}
-          subtitle={
-            runComplete
-              ? `${completionCue.message} ${completionCue.rating}. Score: ${summary.score} pts.`
-              : `${completionCue.message} ${completionCue.stabilityCarrySeconds}s reserve carried forward. ${completionCue.nextAction}`
-          }
-          actions={
-            <OverlayButton
-              type="button"
-              onClick={() => {
-                writeState(
-                  runComplete ? restartGame(readState().sessionMode) : nextLevel(readState())
-                );
-                entropyEntity.set(PhaseTrait, { phase: "playing" });
-              }}
-            >
-              {runComplete ? "Stabilize Again" : "Proceed to Next Sector"}
-            </OverlayButton>
-          }
-        />
-      ) : null}
-
-      {phase === "gameover" ? (
-        <GameOverScreen
-          accent="var(--color-warn)"
-          glowRgb="255, 55, 95"
-          displayClassName="ee-display"
-          background="radial-gradient(ellipse at center, rgba(255, 55, 95, 0.2), rgba(7, 8, 10, 0.96) 70%)"
-          title="Sector Collapsed"
-          subtitle={`Stability reached zero. Total score: ${scoreData.value} pts. Total anchors secured: ${state.totalAnchors}.`}
-          actions={
-            <OverlayButton
-              type="button"
-              onClick={() => {
-                writeState(restartGame(readState().sessionMode));
-                entropyEntity.set(PhaseTrait, { phase: "playing" });
-              }}
-            >
-              Restart Simulation
-            </OverlayButton>
-          }
-        />
-      ) : null}
-    </GameViewport>
-  );
-}
-
-function resolveEntropyStartState(
-  mode: SessionMode,
-  saveSlot: GameSaveSlot | undefined,
-  current: EntropyState
-): EntropyState {
-  const snapshot = saveSlot?.snapshot;
-  if (isEntropySnapshot(snapshot)) {
-    const restored = snapshot as EntropyState;
-    return {
-      ...restored,
-      phase: "playing",
-      sessionMode: mode,
-    };
-  }
-
-  return startGame(current, mode);
-}
-
-function isEntropySnapshot(snapshot: unknown): snapshot is EntropyState {
-  const value = snapshot as Partial<EntropyState> | undefined;
-  return Boolean(
-    value &&
-      typeof value === "object" &&
-      typeof value.level === "number" &&
-      typeof value.playerGridX === "number" &&
-      typeof value.playerGridZ === "number" &&
-      typeof value.timeMs === "number" &&
-      Array.isArray(value.fallingBlocks) &&
-      Array.isArray(value.blockedCells)
-  );
-}
-
-export default function Game() {
-  return (
-    <WorldProvider world={entropyWorld}>
-      <EntropyApp />
-    </WorldProvider>
-  );
-}
-
-interface RunResultEffectProps {
-  phase: string;
-  mode: SessionMode;
-  score: number;
-  sector: number;
-  rating: string;
-}
-
-function RunResultEffect({ phase, mode, score, sector, rating }: RunResultEffectProps) {
-  useEffect(() => {
-    if (phase === "win") {
-      recordRunResult({
-        mode,
-        score,
-        status: "completed",
-        summary: `${rating}: sector ${sector}`,
-        milestones: ["entropy-run-complete"],
-      });
-    } else if (phase === "gameover") {
-      recordRunResult({
-        mode,
-        score,
-        status: "failed",
-        summary: `Collapsed in sector ${sector}`,
-      });
+    const seed = readSeedFromLocation(window.location.search);
+    if (seed && phase === 'landing') {
+      setActiveSeed(seed);
+      setPhase('playing');
     }
-  }, [phase, mode, score, sector, rating]);
-  return null;
+  }, [phase]);
+
+  return (
+    <AnimatePresence mode="wait">
+      {phase === 'landing' ? (
+        <motion.div
+          key="landing"
+          initial={{ opacity: 1 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.35 }}
+        >
+          <Landing onEnter={() => setPhase('setup')} />
+        </motion.div>
+      ) : phase === 'setup' ? (
+        <motion.div
+          key="setup"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.35 }}
+        >
+          <SetupPhase
+            onStart={(seedSlug) => {
+              setActiveSeed(seedSlug);
+              setPhase('playing');
+            }}
+            onBack={() => setPhase('landing')}
+          />
+        </motion.div>
+      ) : (
+        <motion.div
+          key={`playing-${runId}`}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.35 }}
+        >
+          <Playing
+            explicitSeed={activeSeed}
+            onRestart={() => setRunId((n) => n + 1)}
+            onExit={() => {
+              setActiveSeed(null);
+              window.history.replaceState(null, '', window.location.pathname);
+              setPhase('landing');
+            }}
+          />
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
+}
+
+function SetupPhase({ onStart, onBack }: { onStart: (seed: string) => void; onBack: () => void }) {
+  const [codename, setCodename] = useState<Codename>(() => resolveSeed(null).codename);
+
+  const rollNew = () => setCodename(resolveSeed(null).codename);
+
+  return (
+    <main
+      style={{
+        width: '100vw',
+        height: '100svh',
+        background: 'var(--color-bg, #07080a)',
+        color: 'var(--color-fg, #dce1e8)',
+        display: 'grid',
+        placeItems: 'center',
+        padding: 32,
+      }}
+    >
+      <div
+        style={{
+          maxWidth: 480,
+          width: '100%',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          gap: 32,
+          textAlign: 'center',
+        }}
+      >
+        <div>
+          <h2 className="ee-display" style={{ color: 'var(--color-signal, #ff6b1a)', fontSize: 32, margin: '0 0 16px 0', textTransform: 'uppercase' }}>
+            Initialize Sector
+          </h2>
+          <p style={{ margin: 0, color: 'var(--color-fg-muted, #7a8190)', lineHeight: 1.5 }}>
+            Every sector is procedurally generated from a codename seed. 
+            The world's topography, goal height, and your rival's strategy are all locked to this phrase.
+          </p>
+        </div>
+
+        <div style={{ padding: '24px', border: '1px solid rgba(33, 212, 255, 0.25)', borderRadius: 8, width: '100%', background: 'rgba(26, 29, 36, 0.4)' }}>
+          <div style={{ fontSize: 12, fontFamily: 'var(--font-mono)', color: 'var(--color-beacon, #21d4ff)', textTransform: 'uppercase', letterSpacing: '0.15em', marginBottom: 12 }}>
+            Sector Codename
+          </div>
+          <div className="ee-display" style={{ fontSize: 28, color: 'var(--color-fg, #dce1e8)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+            {codename.display}
+          </div>
+          <div style={{ marginTop: 24 }}>
+            <button
+              onPointerUp={rollNew}
+              style={{
+                background: 'transparent',
+                border: '1px solid var(--color-fg-muted, #7a8190)',
+                color: 'var(--color-fg, #dce1e8)',
+                padding: '8px 16px',
+                borderRadius: 4,
+                fontFamily: 'var(--font-mono)',
+                fontSize: 12,
+                textTransform: 'uppercase',
+                letterSpacing: '0.1em',
+                cursor: 'pointer',
+              }}
+            >
+              Reroll Coordinates
+            </button>
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', gap: 16, width: '100%' }}>
+          <button
+            onPointerUp={onBack}
+            style={{
+              flex: 1,
+              padding: '14px 24px',
+              background: 'transparent',
+              color: 'var(--color-fg-muted, #7a8190)',
+              border: '1px solid rgba(122, 129, 144, 0.45)',
+              borderRadius: 4,
+              fontFamily: 'var(--font-mono)',
+              fontSize: 14,
+              letterSpacing: '0.14em',
+              textTransform: 'uppercase',
+              cursor: 'pointer',
+            }}
+          >
+            Cancel
+          </button>
+          <button
+            onPointerUp={() => onStart(codename.slug)}
+            className="ee-display"
+            style={{
+              flex: 2,
+              padding: '14px 24px',
+              background: 'var(--color-signal, #ff6b1a)',
+              color: '#0c0a0a',
+              border: 'none',
+              borderRadius: 4,
+              fontSize: 15,
+              fontWeight: 600,
+              letterSpacing: '0.14em',
+              textTransform: 'uppercase',
+              cursor: 'pointer',
+              boxShadow: '0 8px 28px rgba(255, 107, 26, 0.18)',
+            }}
+          >
+            Deploy
+          </button>
+        </div>
+      </div>
+    </main>
+  );
+}
+
+interface PlayingProps {
+  explicitSeed: string | null;
+  onRestart: () => void;
+  onExit: () => void;
+}
+
+function Playing({ explicitSeed, onRestart, onExit }: PlayingProps) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [duelState, setDuelState] = useState<DuelState | null>(null);
+  const [objective, setObjective] = useState<SectorObjective | null>(null);
+  const [codename, setCodename] = useState<Codename | null>(null);
+  const [progress, setProgress] = useState<ProgressSnapshot | null>(null);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const seed = explicitSeed ?? readSeedFromLocation(window.location.search);
+    let disposed = false;
+    let disposer: (() => void) | null = null;
+    (async () => {
+      // Lazy-load the renderer entry so the landing bundle stays lean.
+      const mod = await import('@/render/bridge/bootstrap');
+      if (disposed) return;
+      disposer = await mod.bootstrap({
+        canvas,
+        seed,
+        onDuelChange: setDuelState,
+        onObjective: setObjective,
+        onProgress: setProgress,
+        onCodename: (cn) => {
+          setCodename(cn);
+          const url = shareUrlForSeed(cn, window.location.origin, window.location.pathname);
+          window.history.replaceState(null, '', url);
+        },
+      });
+      if (disposed) disposer?.();
+    })();
+    return () => {
+      disposed = true;
+      disposer?.();
+    };
+  }, [explicitSeed]);
+
+  return (
+    <main
+      style={{
+        width: '100vw',
+        height: '100svh',
+        background: 'var(--color-bg, #07080a)',
+        overflow: 'hidden',
+        position: 'relative',
+      }}
+    >
+      <canvas
+        ref={canvasRef}
+        style={{ width: '100%', height: '100%', display: 'block' }}
+      />
+      {duelState && objective ? (
+        <Hud state={duelState} objective={objective} codename={codename} progress={progress} />
+      ) : null}
+      <MuteToggle />
+      {duelState && objective ? (
+        <GameOverOverlay
+          state={duelState}
+          objective={objective}
+          progress={progress}
+          onRestart={onRestart}
+          onExit={onExit}
+        />
+      ) : null}
+    </main>
+  );
+}
+
+function Hud({
+  state,
+  objective,
+  codename,
+  progress,
+}: {
+  state: DuelState;
+  objective: SectorObjective;
+  codename: Codename | null;
+  progress: ProgressSnapshot | null;
+}) {
+  const banner = bannerForState(state, objective, progress);
+  return (
+    <div
+      className="ee-display"
+      style={{
+        position: 'absolute',
+        inset: 0,
+        pointerEvents: 'none',
+        padding: '16px',
+        display: 'flex',
+        flexDirection: 'column',
+        justifyContent: 'space-between',
+        color: 'var(--color-fg, #dce1e8)',
+      }}
+    >
+      <header
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'flex-start',
+          gap: 16,
+          fontSize: 13,
+          letterSpacing: '0.05em',
+          textTransform: 'uppercase',
+        }}
+      >
+        <div>
+          <div style={{ color: 'var(--color-signal, #ff6b1a)', fontWeight: 600 }}>
+            Sector {objective.sector}
+          </div>
+          <div style={{ color: 'var(--color-fg-muted, #7a8190)' }}>{objective.telegraph}</div>
+        </div>
+        {codename ? <SeedBadge codename={codename} /> : null}
+        <div style={{ textAlign: 'right', fontFamily: 'var(--font-mono)' }}>
+          <div>Tier target {objective.tierTarget}</div>
+          <div style={{ color: 'var(--color-fg-muted, #7a8190)' }}>
+            Round {state.round} / {objective.maxRounds}
+          </div>
+        </div>
+      </header>
+      <div
+        style={{
+          textAlign: 'center',
+          fontFamily: 'var(--font-mono)',
+          fontSize: 13,
+          letterSpacing: '0.12em',
+          textTransform: 'uppercase',
+          color: banner.tone,
+        }}
+      >
+        {banner.text}
+      </div>
+      <footer
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'flex-end',
+          gap: 16,
+          fontFamily: 'var(--font-mono)',
+          fontSize: 13,
+        }}
+      >
+        <BudgetBadge
+          label="You"
+          remaining={state.youRemaining}
+          total={objective.blockBudgetPerRound}
+          tier={progress?.yourMaxTier ?? 0}
+          tierTarget={objective.tierTarget}
+          color="#ff6b1a"
+        />
+        <div style={{ textAlign: 'center', color: 'var(--color-fg-muted, #7a8190)' }}>
+          {labelForStatus(state)}
+        </div>
+        <BudgetBadge
+          label="Rival"
+          remaining={state.rivalRemaining}
+          total={objective.blockBudgetPerRound}
+          tier={progress?.rivalMaxTier ?? 0}
+          tierTarget={objective.tierTarget}
+          color="#7d5cff"
+        />
+      </footer>
+    </div>
+  );
+}
+
+function SeedBadge({ codename }: { codename: Codename }) {
+  const [copied, setCopied] = useState(false);
+  const onCopy = useCallback(() => {
+    const url = shareUrlForSeed(codename, window.location.origin, window.location.pathname);
+    navigator.clipboard
+      ?.writeText(url)
+      .then(() => {
+        setCopied(true);
+        setTimeout(() => setCopied(false), 1400);
+      })
+      .catch(() => {
+        /* ignore clipboard failures */
+      });
+  }, [codename]);
+  return (
+    <div
+      style={{
+        pointerEvents: 'auto',
+        textAlign: 'center',
+        minWidth: 160,
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        gap: 2,
+      }}
+    >
+      <button
+        type="button"
+        onPointerUp={onCopy}
+        style={{
+          pointerEvents: 'auto',
+          cursor: 'pointer',
+          background: 'rgba(26, 29, 36, 0.7)',
+          border: '1px solid rgba(33, 212, 255, 0.35)',
+          borderRadius: 4,
+          padding: '6px 12px',
+          fontFamily: 'var(--font-mono)',
+          fontSize: 12,
+          letterSpacing: '0.1em',
+          color: copied ? 'var(--color-monument, #2ee5b8)' : 'var(--color-beacon, #21d4ff)',
+        }}
+        aria-label={`Copy share URL for seed ${codename.display}`}
+      >
+        {copied ? 'copied ✓' : codename.display}
+      </button>
+      <span
+        style={{
+          fontSize: 10,
+          letterSpacing: '0.18em',
+          color: 'var(--color-fg-muted, #7a8190)',
+        }}
+      >
+        Seed · Tap to share
+      </span>
+    </div>
+  );
+}
+
+function BudgetBadge({
+  label,
+  remaining,
+  total,
+  tier,
+  tierTarget,
+  color,
+}: {
+  label: string;
+  remaining: number;
+  total: number;
+  tier: number;
+  tierTarget: number;
+  color: string;
+}) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+      <span style={{ color, textTransform: 'uppercase', letterSpacing: '0.1em' }}>{label}</span>
+      <span style={{ color: 'var(--color-fg, #dce1e8)', fontSize: 20 }}>
+        {remaining}
+        <span style={{ color: 'var(--color-fg-muted, #7a8190)', fontSize: 14 }}>/{total}</span>
+      </span>
+      <span
+        style={{
+          color: 'var(--color-fg-muted, #7a8190)',
+          fontSize: 11,
+          letterSpacing: '0.12em',
+        }}
+      >
+        Tier {tier}/{tierTarget}
+      </span>
+    </div>
+  );
+}
+
+function GameOverOverlay({
+  state,
+  objective,
+  progress,
+  onRestart,
+  onExit,
+}: {
+  state: DuelState;
+  objective: SectorObjective;
+  progress: ProgressSnapshot | null;
+  onRestart: () => void;
+  onExit: () => void;
+}) {
+  const { status } = state;
+  if (status.kind !== 'claimed' && status.kind !== 'drawn') return null;
+  const youWon = status.kind === 'claimed' && status.winner === 'you';
+  const rivalWon = status.kind === 'claimed' && status.winner === 'rival';
+  const headline = youWon ? 'Sector Claimed' : rivalWon ? 'Rival Claimed' : 'Sector Held Open';
+  const tone = youWon
+    ? 'var(--color-monument, #2ee5b8)'
+    : rivalWon
+      ? 'var(--color-rival, #7d5cff)'
+      : 'var(--color-fg-muted, #7a8190)';
+  const roundsUsed = status.kind === 'claimed' ? status.round : objective.maxRounds;
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.4, delay: 0.15 }}
+      style={{
+        position: 'absolute',
+        inset: 0,
+        pointerEvents: 'auto',
+        background: 'rgba(7, 8, 10, 0.82)',
+        backdropFilter: 'blur(4px)',
+        display: 'grid',
+        placeItems: 'center',
+        padding: 24,
+      }}
+    >
+      <div
+        style={{
+          maxWidth: 440,
+          width: '100%',
+          textAlign: 'center',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          gap: 18,
+          color: 'var(--color-fg, #dce1e8)',
+        }}
+      >
+        <h2
+          className="ee-display"
+          style={{
+            margin: 0,
+            fontSize: 'clamp(32px, 6vw, 48px)',
+            textTransform: 'uppercase',
+            letterSpacing: '0.04em',
+            color: tone,
+            lineHeight: 1,
+          }}
+        >
+          {headline}
+        </h2>
+        <p
+          style={{
+            margin: 0,
+            fontFamily: 'var(--font-mono)',
+            fontSize: 13,
+            letterSpacing: '0.12em',
+            textTransform: 'uppercase',
+            color: 'var(--color-fg-muted, #7a8190)',
+          }}
+        >
+          Sector {objective.sector} · {objective.patternName} · {roundsUsed}/{objective.maxRounds} rounds
+        </p>
+        <dl
+          style={{
+            display: 'grid',
+            gridTemplateColumns: '1fr 1fr',
+            gap: '10px 24px',
+            margin: 0,
+            fontFamily: 'var(--font-mono)',
+            fontSize: 12,
+            color: 'var(--color-fg, #dce1e8)',
+          }}
+        >
+          <dt style={{ color: 'var(--color-signal, #ff6b1a)', textAlign: 'right' }}>You</dt>
+          <dd style={{ margin: 0, textAlign: 'left' }}>
+            tier {progress?.yourMaxTier ?? 0}/{objective.tierTarget} · {progress?.yourCellCount ?? 0} blocks
+          </dd>
+          <dt style={{ color: 'var(--color-rival, #7d5cff)', textAlign: 'right' }}>Rival</dt>
+          <dd style={{ margin: 0, textAlign: 'left' }}>
+            tier {progress?.rivalMaxTier ?? 0}/{objective.tierTarget} · {progress?.rivalCellCount ?? 0} blocks
+          </dd>
+        </dl>
+        <div style={{ display: 'flex', gap: 12, marginTop: 8, flexWrap: 'wrap', justifyContent: 'center' }}>
+          <button
+            type="button"
+            onPointerUp={onRestart}
+            className="ee-display"
+            style={{
+              padding: '12px 26px',
+              background: 'var(--color-signal, #ff6b1a)',
+              color: '#0c0a0a',
+              border: 'none',
+              borderRadius: 4,
+              fontSize: 14,
+              fontWeight: 600,
+              letterSpacing: '0.14em',
+              textTransform: 'uppercase',
+              cursor: 'pointer',
+              boxShadow: '0 8px 24px rgba(255, 107, 26, 0.18)',
+            }}
+          >
+            Deploy Next
+          </button>
+          <button
+            type="button"
+            onPointerUp={onExit}
+            style={{
+              padding: '12px 22px',
+              background: 'transparent',
+              color: 'var(--color-fg-muted, #7a8190)',
+              border: '1px solid rgba(122, 129, 144, 0.45)',
+              borderRadius: 4,
+              fontFamily: 'var(--font-mono)',
+              fontSize: 12,
+              letterSpacing: '0.14em',
+              textTransform: 'uppercase',
+              cursor: 'pointer',
+            }}
+          >
+            End Mission
+          </button>
+        </div>
+      </div>
+    </motion.div>
+  );
+}
+
+function MuteToggle() {
+  const [muted, setMutedState] = useState<boolean>(() => isMuted());
+  useEffect(() => onMuteChange(setMutedState), []);
+  return (
+    <button
+      type="button"
+      aria-label={muted ? 'Unmute audio' : 'Mute audio'}
+      aria-pressed={muted}
+      onPointerUp={() => setMuted(!muted)}
+      style={{
+        position: 'absolute',
+        right: 16,
+        bottom: 16,
+        width: 40,
+        height: 40,
+        borderRadius: 20,
+        background: 'rgba(26, 29, 36, 0.75)',
+        border: `1px solid ${muted ? 'var(--color-warn, #ff375f)' : 'rgba(33, 212, 255, 0.35)'}`,
+        color: muted ? 'var(--color-warn, #ff375f)' : 'var(--color-beacon, #21d4ff)',
+        cursor: 'pointer',
+        fontFamily: 'var(--font-mono)',
+        fontSize: 14,
+        pointerEvents: 'auto',
+        display: 'grid',
+        placeItems: 'center',
+      }}
+    >
+      {muted ? '×' : '♪'}
+    </button>
+  );
+}
+
+interface Banner {
+  readonly text: string;
+  readonly tone: string;
+}
+
+function bannerForState(
+  state: DuelState,
+  objective: SectorObjective,
+  progress: ProgressSnapshot | null
+): Banner {
+  if (state.status.kind === 'claimed') {
+    return state.status.winner === 'you'
+      ? { text: 'You claimed the sector', tone: 'var(--color-monument, #2ee5b8)' }
+      : { text: 'Rival claimed the sector', tone: 'var(--color-rival, #7d5cff)' };
+  }
+  if (state.status.kind === 'drawn') {
+    return { text: 'Sector held open — draw', tone: 'var(--color-fg-muted, #7a8190)' };
+  }
+  const roundsLeft = Math.max(0, objective.maxRounds - state.round + 1);
+  const reached = progress?.yourMaxTier ?? 0;
+  const remaining = Math.max(0, objective.tierTarget - reached);
+  if (state.turn !== 'you') {
+    return { text: 'Rival building…', tone: 'var(--color-rival, #7d5cff)' };
+  }
+  if (remaining === 0) {
+    return { text: 'Hold connectivity to claim', tone: 'var(--color-beacon, #21d4ff)' };
+  }
+  return {
+    text: `Build ${remaining} tier${remaining === 1 ? '' : 's'} up · ${roundsLeft} round${
+      roundsLeft === 1 ? '' : 's'
+    } left`,
+    tone: 'var(--color-signal, #ff6b1a)',
+  };
+}
+
+function labelForStatus(state: DuelState): string {
+  switch (state.status.kind) {
+    case 'ongoing':
+      return state.turn === 'you' ? 'Your Turn — Tap to Build' : 'Rival Thinking';
+    case 'claimed':
+      return `${state.status.winner === 'you' ? 'You' : 'Rival'} claimed sector`;
+    case 'drawn':
+      return 'Sector held open';
+    case 'pending':
+      return 'Initializing';
+    default:
+      return '';
+  }
 }

@@ -1,0 +1,8 @@
+{
+  "bands": {
+    "band1": { "reinforceStress": 1.0, "satisfyThreshold": 0.8, "climbTier": 0.6 },
+    "band2": { "reinforceStress": 1.0, "satisfyThreshold": 0.9, "climbTier": 0.6 },
+    "band3": { "reinforceStress": 1.0, "satisfyThreshold": 1.0, "climbTier": 0.7 },
+    "band4": { "reinforceStress": 1.0, "satisfyThreshold": 1.0, "climbTier": 0.8 }
+  }
+}

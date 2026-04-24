@@ -1,0 +1,18 @@
+{
+  "standard": {
+    "sectors": 5,
+    "description": "Default log-curve. Five sectors, balanced palette."
+  },
+  "brutalist": {
+    "sectors": 4,
+    "description": "Favors wide bases and massive plates. Four sectors."
+  },
+  "vertigo": {
+    "sectors": 6,
+    "description": "Tall narrow spires. Brace-heavy patterns."
+  },
+  "daily": {
+    "sectors": 5,
+    "description": "UTC-seeded run. Same structure for everyone today."
+  }
+}

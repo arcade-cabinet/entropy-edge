@@ -1,0 +1,18 @@
+[
+  { "kind": "cube", "capacity": 1, "weight": 1, "requiresBrace": false, "cellCount": 1 },
+  { "kind": "plate2x2", "capacity": 4, "weight": 4, "requiresBrace": false, "cellCount": 4 },
+  { "kind": "plate3x3", "capacity": 9, "weight": 9, "requiresBrace": false, "cellCount": 9 },
+  { "kind": "plate4x4", "capacity": 16, "weight": 16, "requiresBrace": false, "cellCount": 16 },
+  { "kind": "wedge", "capacity": 6, "weight": 5, "requiresBrace": false, "cellCount": 5 },
+  { "kind": "pyramid", "capacity": 20, "weight": 14, "requiresBrace": false, "cellCount": 14 },
+  { "kind": "ziggurat", "capacity": 40, "weight": 30, "requiresBrace": false, "cellCount": 30 },
+  { "kind": "lintel", "capacity": 3, "weight": 1, "requiresBrace": false, "cellCount": 1 },
+  { "kind": "beam", "capacity": 4, "weight": 3, "requiresBrace": false, "cellCount": 3 },
+  { "kind": "arch", "capacity": 8, "weight": 5, "requiresBrace": false, "cellCount": 5 },
+  { "kind": "trussBridge", "capacity": 14, "weight": 19, "requiresBrace": false, "cellCount": 19 },
+  { "kind": "flyingButtress", "capacity": 4, "weight": 4, "requiresBrace": false, "cellCount": 4 },
+  { "kind": "diagonalBrace", "capacity": 2, "weight": 2, "requiresBrace": false, "cellCount": 2 },
+  { "kind": "kBrace", "capacity": 3, "weight": 4, "requiresBrace": false, "cellCount": 4 },
+  { "kind": "crossBrace", "capacity": 2, "weight": 3, "requiresBrace": false, "cellCount": 3 },
+  { "kind": "corbel", "capacity": 3, "weight": 3, "requiresBrace": false, "cellCount": 3 }
+]
