@@ -9,6 +9,7 @@ import {
   type Codename,
   type DuelState,
   type SectorObjective,
+  type ShapeKind,
   plan as planRival,
 } from '@/sim';
 import { attachPointerInput, SimBridge, type ProgressSnapshot } from '@/ecs';
@@ -37,9 +38,12 @@ export interface BootstrapOptions {
   onProgress?: (progress: ProgressSnapshot) => void;
 }
 
-export type Teardown = () => void;
+export interface BootstrapResult {
+  teardown: () => void;
+  setActiveShape: (kind: ShapeKind) => void;
+}
 
-export async function bootstrap(options: BootstrapOptions): Promise<Teardown> {
+export async function bootstrap(options: BootstrapOptions): Promise<BootstrapResult> {
   const { canvas } = options;
   const { rng: seedRng, codename } = resolveSeed(options.seed ?? null);
   options.onCodename?.(codename);
@@ -260,7 +264,7 @@ export async function bootstrap(options: BootstrapOptions): Promise<Teardown> {
 
   // Pointer input — tap/drag-to-place cubes.
   let detachPointer: (() => void) | null = null;
-  let autoplayInterval: ReturnType<typeof setInterval> | null = null;
+  let activeShape: import('@/sim').ShapeKind = 'cube';
 
   const tryAttachPointer = () => {
     if (detachPointer || !cameraRef) return;
@@ -288,7 +292,7 @@ export async function bootstrap(options: BootstrapOptions): Promise<Teardown> {
           if (plan) {
             try {
               bridge.commitPlayer({ kind: plan.kind, origin: plan.origin });
-            } catch (e: any) {
+            } catch {
               bridge.endYourTurn();
             }
           } else {
@@ -332,7 +336,7 @@ export async function bootstrap(options: BootstrapOptions): Promise<Teardown> {
         if (bridge.state.turn !== 'you') return;
         if (bridge.state.status.kind !== 'ongoing') return;
         try {
-          bridge.commitPlayer({ kind: 'cube', origin: pos });
+          bridge.commitPlayer({ kind: activeShape, origin: pos });
         } catch {
           // Illegal placement — ignore silently; hologram feedback lands in PR H.
         }
@@ -362,26 +366,31 @@ export async function bootstrap(options: BootstrapOptions): Promise<Teardown> {
   // and fetches GPU benchmarks from unpkg.com which trips our CSP.
   runtime.start();
 
-  return () => {
-    if (stabilityRaf) {
-      cancelAnimationFrame(stabilityRaf);
-      stabilityRaf = 0;
-    }
-    offChange();
-    offProgress?.();
-    offCommit();
-    offCollapse();
-    detachPointer?.();
-    ambient.stop();
-    sfx.stop();
-    runtime.stop?.();
-    tierMarker.geometry.dispose();
-    (tierMarker.material as THREE.Material).dispose();
-    ground.geometry.dispose();
-    if (Array.isArray(ground.material)) {
-      for (const m of ground.material) m.dispose();
-    } else {
-      ground.material.dispose();
+  return {
+    teardown: () => {
+      if (stabilityRaf) {
+        cancelAnimationFrame(stabilityRaf);
+        stabilityRaf = 0;
+      }
+      offChange();
+      offProgress?.();
+      offCommit();
+      offCollapse();
+      detachPointer?.();
+      ambient.stop();
+      sfx.stop();
+      runtime.stop?.();
+      tierMarker.geometry.dispose();
+      (tierMarker.material as THREE.Material).dispose();
+      ground.geometry.dispose();
+      if (Array.isArray(ground.material)) {
+        for (const m of ground.material) m.dispose();
+      } else {
+        ground.material.dispose();
+      }
+    },
+    setActiveShape: (kind: import('@/sim').ShapeKind) => {
+      activeShape = kind;
     }
   };
 }

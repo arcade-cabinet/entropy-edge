@@ -13,7 +13,7 @@ test('mounts VoxelRenderer and takes a screenshot', async () => {
   canvas.style.height = '100%';
   container.appendChild(canvas);
 
-  const teardown = await bootstrap({
+  const { teardown } = await bootstrap({
     canvas,
     seed: 'test-seed',
   });
