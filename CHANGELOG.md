@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0](https://github.com/arcade-cabinet/entropy-edge/compare/v0.1.0...v0.2.0) (2026-04-24)
+
+
+### Features
+
+* extract entropy-edge from jbcom/arcade-cabinet ([81281fa](https://github.com/arcade-cabinet/entropy-edge/commit/81281fa3a3039865d445e15fb077258a527585d4))
+* **polish:** Implement playable Shape Palette for HUD ([#11](https://github.com/arcade-cabinet/entropy-edge/issues/11)) ([1eb690f](https://github.com/arcade-cabinet/entropy-edge/commit/1eb690f79ffb8895d4d9a6779972987a2709889a))
+* **polish:** Next-level additions: Collapse debris, screenshake, Daily seeds, score UI, rival pacing ([#10](https://github.com/arcade-cabinet/entropy-edge/issues/10)) ([d178d85](https://github.com/arcade-cabinet/entropy-edge/commit/d178d85bdb522b43f36eb50e4ce5a3604ce4e22d))
+* rebuild from POC — Scrabble-style voxel duel on JollyPixel ([#9](https://github.com/arcade-cabinet/entropy-edge/issues/9)) ([fcf6335](https://github.com/arcade-cabinet/entropy-edge/commit/fcf6335f0b3071fdef16848c0d01525b94c7e710))
+
 ## [Unreleased]
 
 ### Changed
